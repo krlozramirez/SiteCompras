@@ -1,0 +1,3921 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="ImportApp">
+  <title>ImportApp</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <style>
+:root {
+  --primary: #6366f1;
+  --primary-dark: #4f46e5;
+  --primary-light: #e0e7ff;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --sidebar-bg: #0f172a;
+  --sidebar-text: #94a3b8;
+  --body-bg: #f1f5f9;
+  --card-bg: #ffffff;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --border: #e2e8f0;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--body-bg);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+#app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ── Sidebar ── */
+#sidebar {
+  width: 220px;
+  background: var(--sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.sidebar-header {
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.sidebar-header h2 { color: #f1f5f9; font-size: 17px; font-weight: 700; }
+
+nav { padding: 10px 8px; flex: 1; }
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--sidebar-text);
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: all 0.15s;
+  margin-bottom: 2px;
+}
+.nav-link:hover { background: rgba(255,255,255,0.06); color: #e2e8f0; }
+.nav-link.active { background: rgba(99,102,241,0.18); color: #818cf8; }
+.nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+/* ── Sync button ── */
+#sync-panel {
+  padding: 8px 8px 14px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+.sync-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all .15s;
+  text-align: left;
+  font-family: inherit;
+}
+.sync-btn:disabled { opacity: .6; cursor: default; }
+.sync-btn.sync-active  { background: rgba(99,102,241,0.15); color: #818cf8; }
+.sync-btn.sync-active:hover:not(:disabled) { background: rgba(99,102,241,0.28); }
+.sync-btn.sync-inactive { background: rgba(255,255,255,0.04); color: #475569; }
+.sync-btn.sync-inactive:hover:not(:disabled) { background: rgba(255,255,255,0.08); color: #94a3b8; }
+.sync-btn.sync-ok { background: rgba(16,185,129,0.2); color: #6ee7b7; }
+.sync-icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
+.sync-label { flex: 1; }
+.sync-status {
+  font-size: 10px;
+  color: #475569;
+  margin-top: 3px;
+  padding: 0 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Main ── */
+#main-content { flex: 1; overflow-y: auto; padding: 24px; }
+#view-container { max-width: 1200px; margin: 0 auto; }
+
+/* ── Page header ── */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.page-title { font-size: 22px; font-weight: 700; }
+.page-subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
+
+/* ── Stats ── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.stat-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+}
+.stat-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+.stat-value { font-size: 26px; font-weight: 700; }
+.stat-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+/* ── Card ── */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.card-title { font-size: 15px; font-weight: 600; }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-dark); }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover { filter: brightness(.92); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { filter: brightness(.92); }
+.btn-warning { background: var(--warning); color: #fff; }
+.btn-outline { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); }
+.btn-outline:hover { background: var(--primary-light); }
+.btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+.btn-ghost:hover { background: var(--body-bg); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+
+/* ── Tables ── */
+.table-wrapper { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  background: #f8fafc;
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+tbody td { padding: 11px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: #fafafa; }
+
+/* ── Badges ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge-success  { background: #d1fae5; color: #065f46; }
+.badge-warning  { background: #fef3c7; color: #92400e; }
+.badge-danger   { background: #fee2e2; color: #991b1b; }
+.badge-info     { background: #e0e7ff; color: #3730a3; }
+.badge-secondary{ background: #f1f5f9; color: #475569; }
+.badge-purple   { background: #f3e8ff; color: #6b21a8; }
+
+/* ── Forms ── */
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .03em; }
+.form-control {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: #fff;
+  transition: border-color .15s;
+  outline: none;
+  font-family: inherit;
+}
+.form-control:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,.1); }
+textarea.form-control { resize: vertical; }
+.form-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+
+/* ── Toolbar ── */
+.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.search-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 9px 12px 9px 36px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 10px center;
+  font-family: inherit;
+}
+.search-input:focus { border-color: var(--primary); }
+
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 50px rgba(0,0,0,.25);
+}
+.modal-lg { max-width: 780px; }
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 1;
+}
+.modal-header h3 { font-size: 16px; font-weight: 700; }
+.modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text-secondary); padding: 4px 8px; border-radius: 6px; }
+.modal-close:hover { background: var(--body-bg); }
+.modal-body { padding: 22px; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 22px; border-top: 1px solid var(--border); }
+
+/* ── Toast ── */
+#toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
+.toast {
+  padding: 12px 18px;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 200px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.15);
+  animation: slideIn .2s ease;
+}
+.toast-success { background: var(--success); }
+.toast-error   { background: var(--danger); }
+.toast-info    { background: var(--primary); }
+.toast-warning { background: var(--warning); }
+@keyframes slideIn { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+/* ── Product thumb ── */
+.product-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #f1f5f9;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.photo-upload {
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: border-color .15s;
+}
+.photo-upload:hover { border-color: var(--primary); }
+.photo-preview { max-width: 140px; max-height: 140px; border-radius: 8px; object-fit: cover; margin: 8px auto 0; display: block; }
+
+/* ── Avatar ── */
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* ── Timeline steps ── */
+.timeline { display: flex; margin: 14px 0 8px; }
+.step { flex: 1; text-align: center; position: relative; }
+.step::before {
+  content: '';
+  position: absolute;
+  top: 13px;
+  left: 50%;
+  right: -50%;
+  height: 2px;
+  background: var(--border);
+  z-index: 0;
+}
+.step:last-child::before { display: none; }
+.step-dot {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #94a3b8;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 5px;
+  font-size: 11px; font-weight: 700;
+  position: relative; z-index: 1;
+  border: 2px solid #fff;
+}
+.step.done .step-dot  { background: var(--success); color: #fff; }
+.step.active .step-dot { background: var(--primary); color: #fff; }
+.step-label { font-size: 10px; color: var(--text-secondary); font-weight: 500; }
+.step.active .step-label { color: var(--primary); font-weight: 700; }
+
+/* ── Empty state ── */
+.empty-state { text-align: center; padding: 48px 24px; color: var(--text-secondary); }
+.empty-state .empty-icon { font-size: 52px; margin-bottom: 12px; }
+.empty-state h3 { font-size: 16px; margin-bottom: 6px; color: var(--text-primary); }
+
+/* ── Cart ── */
+.cart-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.cart-item:last-child { border-bottom: none; }
+.cart-item-info { flex: 1; min-width: 0; }
+.cart-item-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cart-item-price { font-size: 12px; color: var(--text-secondary); }
+.qty-btn {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.qty-btn:hover { background: var(--body-bg); }
+
+/* ── Pedido card ── */
+.import-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  border-left: 4px solid var(--primary);
+}
+
+/* ── Deuda bar ── */
+.deuda-bar { background: #f1f5f9; border-radius: 99px; height: 8px; overflow: hidden; margin-top: 4px; }
+.deuda-fill { height: 100%; border-radius: 99px; background: var(--success); transition: width .3s; }
+
+/* ── Product grid catalog ── */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+}
+.product-check-card {
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  position: relative;
+}
+.product-check-card.selected { border-color: var(--primary); background: var(--primary-light); }
+.product-check-card img { width: 100%; height: 100px; object-fit: cover; border-radius: 8px; margin-bottom: 8px; background: #f1f5f9; }
+.product-check-card .no-img { width: 100%; height: 100px; display: flex; align-items: center; justify-content: center; font-size: 32px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px; }
+.check-badge {
+  position: absolute;
+  top: 8px; right: 8px;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  display: none;
+  align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700;
+}
+.product-check-card.selected .check-badge { display: flex; }
+
+/* ── Chart containers ── */
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.chart-card { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.chart-title { font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-bottom: 16px; text-transform: uppercase; letter-spacing: .05em; }
+.chart-card canvas { max-height: 240px; }
+
+/* ── Abono list ── */
+.abono-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.abono-item:last-child { border-bottom: none; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  #sidebar { width: 60px; }
+  .nav-link span:not(.nav-icon) { display: none; }
+  .sidebar-header h2, #sidebar-logo-wrap { display: none !important; }
+  #main-content { padding: 14px; }
+  .form-row, .form-row-3 { grid-template-columns: 1fr; }
+  .chart-grid { grid-template-columns: 1fr; }
+  .sync-label, .sync-status { display: none; }
+  .sync-btn { justify-content: center; }
+}
+
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .page-title { font-size: 18px; }
+  .btn { padding: 7px 12px; font-size: 12px; }
+  .modal { border-radius: 12px 12px 0 0; max-height: 95vh; }
+  .modal-overlay { align-items: flex-end; padding: 0; }
+  table { font-size: 12px; }
+  thead th, tbody td { padding: 8px 10px; }
+  .stat-value { font-size: 20px; }
+}
+
+
+/* ── Mobile extra ── */
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .page-title { font-size: 18px; }
+  .btn { padding: 7px 12px; font-size: 12px; }
+  .modal { border-radius: 12px 12px 0 0; }
+  .modal-overlay { align-items: flex-end; padding: 0; }
+  table { font-size: 12px; }
+  thead th, tbody td { padding: 8px 10px; }
+}
+
+  </style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <div id="sidebar-logo-wrap" style="display:none"><img id="sidebar-logo" src="" alt="" style="height:36px;border-radius:6px;margin-bottom:6px"></div>
+      <h2 id="sidebar-title">ImportApp</h2>
+    </div>
+    <nav>
+      <a href="#inventario"    class="nav-link active" data-view="inventario"><span class="nav-icon">📦</span><span>Inventario</span></a>
+      <a href="#importaciones" class="nav-link" data-view="importaciones"><span class="nav-icon">📦</span><span>Pedidos Amazon</span></a>
+      <a href="#clientes"      class="nav-link" data-view="clientes"><span class="nav-icon">👥</span><span>Clientes</span></a>
+      <a href="#ventas"        class="nav-link" data-view="ventas"><span class="nav-icon">🛒</span><span>Pedidos Clientes</span></a>
+      <a href="#cartera"       class="nav-link" data-view="cartera"><span class="nav-icon">💰</span><span>Cartera</span></a>
+      <a href="#catalogo"      class="nav-link" data-view="catalogo"><span class="nav-icon">📄</span><span>Catálogo PDF</span></a>
+      <a href="#reportes"      class="nav-link" data-view="reportes"><span class="nav-icon">📊</span><span>Reportes</span></a>
+      <a href="#config"        class="nav-link" data-view="config"><span class="nav-icon">⚙️</span><span>Configuración</span></a>
+    </nav>
+    <div id="sync-panel">
+      <button id="sync-btn" class="sync-btn sync-inactive" onclick="App.syncData()">
+        <span class="sync-icon">💾</span>
+        <span class="sync-label">Sin carpeta</span>
+      </button>
+      <div id="sync-status" class="sync-status">Configurar en ⚙️</div>
+    </div>
+  </aside>
+
+  <main id="main-content">
+    <div id="view-container"></div>
+  </main>
+</div>
+
+<div id="modal-overlay" class="modal-overlay" style="display:none">
+  <div id="modal" class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title"></h3>
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+    </div>
+    <div id="modal-body" class="modal-body"></div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+const Storage = {
+  K: {
+    PRODUCTOS:    'imp_productos',
+    IMPORTACIONES:'imp_importaciones',
+    CLIENTES:     'imp_clientes',
+    VENTAS:       'imp_ventas',
+    ABONOS:       'imp_abonos',
+    CONFIG:       'imp_config'
+  },
+
+  _cache:     {},   // espejo en memoria de los datos activos
+  _dirHandle: null, // FileSystemDirectoryHandle (si el usuario eligió carpeta)
+  _dbProm:    null, // promesa de IndexedDB reutilizable
+
+  // ── Inicialización (llamar al arrancar la app) ─────────────────────────────
+  async initStorage() {
+    const handle = await this._loadHandle();
+    if (!handle) return false;
+    try {
+      const perm = await handle.requestPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') return false;
+      this._dirHandle = handle;
+      await this._loadAllFromFiles();
+      return true;
+    } catch { return false; }
+  },
+
+  // Abre el selector de carpeta; migra datos existentes a los archivos
+  async selectFolder() {
+    if (!('showDirectoryPicker' in window)) {
+      App.toast('Tu navegador no soporta esta función. Usa Chrome o Edge.', 'error');
+      return null;
+    }
+    try {
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'documents' });
+      this._dirHandle = handle;
+      await this._saveHandle(handle);
+      await this._writeAllToFiles();
+      return handle.name;
+    } catch (e) {
+      if (e.name !== 'AbortError') App.toast('No se pudo acceder a la carpeta', 'error');
+      return null;
+    }
+  },
+
+  getFolderName() { return this._dirHandle?.name || null; },
+
+  async disconnectFolder() {
+    this._dirHandle = null;
+    await this._deleteHandle();
+  },
+
+  async syncAll() {
+    if (!this._dirHandle) return { ok: false, reason: 'no-folder' };
+    try {
+      await this._writeAllToFiles();
+      return { ok: true };
+    } catch(e) { return { ok: false, reason: e.message }; }
+  },
+
+  // ── IndexedDB — persiste el FileSystemDirectoryHandle entre sesiones ───────
+  _openDB() {
+    if (this._dbProm) return this._dbProm;
+    this._dbProm = new Promise((res, rej) => {
+      const r = indexedDB.open('importapp_v1', 1);
+      r.onupgradeneeded = e => e.target.result.createObjectStore('h');
+      r.onsuccess = e => res(e.target.result);
+      r.onerror   = () => rej(r.error);
+    });
+    return this._dbProm;
+  },
+  async _saveHandle(h) {
+    const db = await this._openDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction('h', 'readwrite');
+      tx.objectStore('h').put(h, 'dir');
+      tx.oncomplete = res;
+      tx.onerror    = () => rej(tx.error);
+    });
+  },
+  async _loadHandle() {
+    try {
+      const db = await this._openDB();
+      return new Promise(res => {
+        const tx  = db.transaction('h', 'readonly');
+        const req = tx.objectStore('h').get('dir');
+        req.onsuccess = () => res(req.result || null);
+        req.onerror   = () => res(null);
+      });
+    } catch { return null; }
+  },
+  async _deleteHandle() {
+    try {
+      const db = await this._openDB();
+      const tx  = db.transaction('h', 'readwrite');
+      tx.objectStore('h').delete('dir');
+    } catch {}
+  },
+
+  // ── File I/O ───────────────────────────────────────────────────────────────
+  async _writeFile(key, val) {
+    if (!this._dirHandle) return;
+    try {
+      const fh = await this._dirHandle.getFileHandle(`${key}.json`, { create: true });
+      const wr = await fh.createWritable();
+      await wr.write(JSON.stringify(val, null, 2));
+      await wr.close();
+    } catch (e) { console.warn('[ImportApp] Error escribiendo', key, e); }
+  },
+
+  async _loadAllFromFiles() {
+    for (const key of Object.values(this.K)) {
+      try {
+        if (key === this.K.PRODUCTOS) {
+          // Productos: leer JSON con refs + hidratar imágenes desde archivos
+          const list = await this._readProductosFromFile();
+          if (list !== null) {
+            this._cache[key] = list;
+            localStorage.setItem(key, JSON.stringify(list));
+          }
+        } else {
+          const fh   = await this._dirHandle.getFileHandle(`${key}.json`);
+          const file = await fh.getFile();
+          const data = JSON.parse(await file.text());
+          this._cache[key] = data;
+          localStorage.setItem(key, JSON.stringify(data));
+        }
+      } catch { /* archivo no existe aún, se creará al primer _set */ }
+    }
+  },
+
+  async _writeAllToFiles() {
+    for (const key of Object.values(this.K)) {
+      const val = this._cache[key] !== undefined
+        ? this._cache[key]
+        : (() => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } })();
+      if (val === null || val === undefined) continue;
+      if (key === this.K.PRODUCTOS) await this._writeProductosFile(val);
+      else await this._writeFile(key, val);
+    }
+  },
+
+  // ── Image file operations ──────────────────────────────────────────────────
+  // Escribe la imagen de un producto como archivo img_[id].jpg en la carpeta
+  async _writeImageFile(productoId, base64) {
+    if (!this._dirHandle || !base64 || !base64.startsWith('data:image/')) return null;
+    try {
+      const [header, data] = base64.split(',');
+      const mime     = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
+      const ext      = mime.includes('png') ? 'png' : 'jpg';
+      const filename = `img_${productoId}.${ext}`;
+      const bytes    = atob(data);
+      const arr      = new Uint8Array(bytes.length);
+      for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+      const fh = await this._dirHandle.getFileHandle(filename, { create: true });
+      const wr = await fh.createWritable();
+      await wr.write(arr);
+      await wr.close();
+      return filename;
+    } catch(e) { console.warn('[ImportApp] Error escribiendo imagen', productoId, e); return null; }
+  },
+
+  // Lee un archivo de imagen de la carpeta y devuelve base64
+  async _readImageFile(filename) {
+    if (!this._dirHandle || !filename) return null;
+    try {
+      const fh   = await this._dirHandle.getFileHandle(filename);
+      const file = await fh.getFile();
+      return new Promise(res => {
+        const rd = new FileReader();
+        rd.onload  = e => res(e.target.result);
+        rd.onerror = () => res(null);
+        rd.readAsDataURL(file);
+      });
+    } catch { return null; }
+  },
+
+  // Borra los archivos de imagen de un producto (por id)
+  async _deleteImageFile(productoId) {
+    if (!this._dirHandle) return;
+    for (const ext of ['jpg', 'png']) {
+      try { await this._dirHandle.removeEntry(`img_${productoId}.${ext}`); } catch {}
+    }
+  },
+
+  // Escribe los productos en disco: imágenes como archivos .jpg, JSON solo con refs
+  async _writeProductosFile(list) {
+    if (!this._dirHandle) return;
+    const fileList = [];
+    for (const p of list) {
+      const cp = { ...p };
+      if (cp.foto && cp.foto.startsWith('data:image/')) {
+        const fname = await this._writeImageFile(p.id, cp.foto);
+        if (fname) cp.foto = fname;
+      }
+      fileList.push(cp);
+    }
+    await this._writeFile(this.K.PRODUCTOS, fileList);
+  },
+
+  // Lee productos del disco: hidrata refs de imagen con base64 desde archivos
+  async _readProductosFromFile() {
+    if (!this._dirHandle) return null;
+    try {
+      const fh   = await this._dirHandle.getFileHandle(`${this.K.PRODUCTOS}.json`);
+      const file = await fh.getFile();
+      const list = JSON.parse(await file.text());
+      for (const p of list) {
+        if (p.foto && !p.foto.startsWith('data:') && p.foto.startsWith('img_')) {
+          p.foto = await this._readImageFile(p.foto) || null;
+        }
+      }
+      return list;
+    } catch { return null; }
+  },
+
+  // ── Core get / set ─────────────────────────────────────────────────────────
+  _get(key) {
+    try {
+      if (this._cache[key] !== undefined) return this._cache[key];
+      return JSON.parse(localStorage.getItem(key)) || [];
+    } catch { return []; }
+  },
+  _set(key, val) {
+    this._cache[key] = val;
+    localStorage.setItem(key, JSON.stringify(val));
+    if (this._dirHandle) this._writeFile(key, val); // async, fire-and-forget
+  },
+
+  uuid()  { return Date.now().toString(36) + Math.random().toString(36).substr(2, 9); },
+  today() { return new Date().toISOString().split('T')[0]; },
+
+  // CONFIG
+  getConfig() {
+    try {
+      const c = this._cache[this.K.CONFIG]
+             || JSON.parse(localStorage.getItem(this.K.CONFIG));
+      return c || { nombreNegocio:'ImportApp', porcentajeDefault:40 };
+    } catch { return { nombreNegocio:'ImportApp', porcentajeDefault:40 }; }
+  },
+  saveConfig(c) {
+    this._cache[this.K.CONFIG] = c;
+    localStorage.setItem(this.K.CONFIG, JSON.stringify(c));
+    if (this._dirHandle) this._writeFile(this.K.CONFIG, c);
+  },
+
+  // PRODUCTOS
+  getProductos()    { return this._get(this.K.PRODUCTOS); },
+  getProducto(id)   { return this.getProductos().find(p => p.id === id); },
+  saveProducto(p)   {
+    const list = this.getProductos();
+    if (!p.id) { p.id = this.uuid(); p.fechaIngreso = this.today(); }
+    const i = list.findIndex(x => x.id === p.id);
+    if (i >= 0) list[i] = p; else list.push(p);
+    // Mantener base64 en memoria y localStorage; en carpeta guardar imágenes como archivos
+    this._cache[this.K.PRODUCTOS] = list;
+    localStorage.setItem(this.K.PRODUCTOS, JSON.stringify(list));
+    if (this._dirHandle) this._writeProductosFile(list);
+    return p;
+  },
+  deleteProducto(id){
+    const list = this.getProductos().filter(p => p.id !== id);
+    this._cache[this.K.PRODUCTOS] = list;
+    localStorage.setItem(this.K.PRODUCTOS, JSON.stringify(list));
+    if (this._dirHandle) {
+      this._writeProductosFile(list);
+      this._deleteImageFile(id);
+    }
+  },
+
+  // IMPORTACIONES
+  getImportaciones()   { return this._get(this.K.IMPORTACIONES); },
+  getImportacion(id)   { return this.getImportaciones().find(p => p.id === id); },
+  saveImportacion(p)   {
+    const list = this.getImportaciones();
+    if (!p.id) p.id = this.uuid();
+    const i = list.findIndex(x => x.id === p.id);
+    if (i >= 0) list[i] = p; else list.push(p);
+    this._set(this.K.IMPORTACIONES, list);
+    return p;
+  },
+  deleteImportacion(id){ this._set(this.K.IMPORTACIONES, this.getImportaciones().filter(p => p.id !== id)); },
+
+  // CLIENTES
+  getClientes()    { return this._get(this.K.CLIENTES); },
+  getCliente(id)   { return this.getClientes().find(c => c.id === id); },
+  saveCliente(c)   {
+    const list = this.getClientes();
+    if (!c.id) { c.id = this.uuid(); c.fechaRegistro = this.today(); }
+    const i = list.findIndex(x => x.id === c.id);
+    if (i >= 0) list[i] = c; else list.push(c);
+    this._set(this.K.CLIENTES, list);
+    return c;
+  },
+  deleteCliente(id){ this._set(this.K.CLIENTES, this.getClientes().filter(c => c.id !== id)); },
+
+  // VENTAS
+  getVentas()   { return this._get(this.K.VENTAS); },
+  getVenta(id)  { return this.getVentas().find(v => v.id === id); },
+  saveVenta(v)  {
+    const list = this.getVentas();
+    if (!v.id) { v.id = this.uuid(); v.fecha = this.today(); }
+    const i = list.findIndex(x => x.id === v.id);
+    if (i >= 0) list[i] = v; else list.push(v);
+    this._set(this.K.VENTAS, list);
+    return v;
+  },
+
+  // ABONOS
+  getAbonos()            { return this._get(this.K.ABONOS); },
+  getAbonosByVenta(vid)  { return this.getAbonos().filter(a => a.ventaId === vid); },
+  getAbonosByCliente(cid){ return this.getAbonos().filter(a => a.clienteId === cid); },
+  saveAbono(a) {
+    const list = this.getAbonos();
+    a.id = this.uuid();
+    list.push(a);
+    this._set(this.K.ABONOS, list);
+    return a;
+  },
+  deleteAbono(id){ this._set(this.K.ABONOS, this.getAbonos().filter(a => a.id !== id)); },
+
+  // ── Helpers de importación ─────────────────────────────────────────────────
+  recibirImportacion(importacionId) {
+    const imp = this.getImportacion(importacionId);
+    if (!imp || imp.estado === 'entregado') return;
+    const items      = imp.productos || [];
+    const pesoTotal  = items.reduce((s, i) => s + parseFloat(i.pesoTotal || 0), 0);
+    // Distribuir courier + costo envío + impuestos proporcionalmente por peso
+    const totalExtra = (parseFloat(imp.valorCourier) || 0)
+                     + (parseFloat(imp.costoEnvio)   || 0)
+                     + (parseFloat(imp.impuestos)    || 0);
+    const cfg = this.getConfig();
+
+    items.forEach(item => {
+      const p = this.getProducto(item.productoId);
+      if (!p) return;
+      const pesoItem  = parseFloat(item.pesoTotal || 0);
+      const extraProp = pesoTotal > 0 ? (pesoItem / pesoTotal) * totalExtra : 0;
+      const unidades  = parseInt(item.unidades) || 1;
+      const extUnit   = unidades > 0 ? extraProp / unidades : 0;
+      const invTotal  = parseFloat(p.costoAmazon || 0) + extUnit;
+      const pct       = parseFloat(p.porcentajeGanancia) || (cfg.porcentajeDefault || 40);
+      p.costoCourier  = Math.round(extUnit   * 100) / 100;  // costo adicional total por unidad
+      p.inversionTotal= Math.round(invTotal  * 100) / 100;
+      p.precioVenta   = Math.round(invTotal * (1 + pct / 100) * 100) / 100;
+      p.stock         = (parseInt(p.stock) || 0) + unidades;
+      p.estado        = 'disponible';
+      p.trackingStatus= 'recibido';
+      p.importacionId = importacionId;
+      this.saveProducto(p);
+    });
+
+    imp.estado         = 'entregado';
+    imp.fechaEntregado = this.today();
+    this.saveImportacion(imp);
+  },
+
+  // ── Saldos ─────────────────────────────────────────────────────────────────
+  getSaldoVenta(ventaId) {
+    const v = this.getVenta(ventaId);
+    if (!v) return 0;
+    const abonado = this.getAbonosByVenta(ventaId).reduce((s, a) => s + parseFloat(a.monto || 0), 0);
+    return Math.max(0, parseFloat(v.total) - parseFloat(v.pagadoInicial || 0) - abonado);
+  },
+  getSaldoCliente(clienteId) {
+    return this.getVentas()
+      .filter(v => v.clienteId === clienteId)
+      .reduce((s, v) => s + this.getSaldoVenta(v.id), 0);
+  },
+  getTotalVentasCliente(clienteId) {
+    return this.getVentas()
+      .filter(v => v.clienteId === clienteId)
+      .reduce((s, v) => s + parseFloat(v.total || 0), 0);
+  },
+
+  // ── Formato ────────────────────────────────────────────────────────────────
+  fmt(n)     { return '$' + (parseFloat(n) || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); },
+  fmtDate(d) {
+    if (!d) return '';
+    const [y, m, day] = d.split('-');
+    return `${day}/${m}/${y}`;
+  },
+
+  // ── CSV Export ─────────────────────────────────────────────────────────────
+  _toCSV(nombre, rows) {
+    if (!rows || !rows.length) return;
+    const keys  = Object.keys(rows[0]);
+    const lines = [
+      keys.join(';'),
+      ...rows.map(r => keys.map(k => {
+        const v = r[k] == null ? '' : r[k];
+        const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+        return (s.includes(';') || s.includes('\n')) ? `"${s.replace(/"/g, '""')}"` : s;
+      }).join(';'))
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = `${nombre}_${this.today()}.csv`;
+    a.click();
+  },
+
+  // ── Excel Backup ───────────────────────────────────────────────────────────
+  exportarExcel() {
+    const wb = XLSX.utils.book_new();
+
+    // Productos — foto se reemplaza por placeholder (base64 haría el archivo enorme)
+    const prods = this.getProductos().map(p => ({ ...p, foto: p.foto ? '[imagen]' : '' }));
+    if (prods.length)  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(prods),  'Productos');
+
+    // Importaciones — array de productos se serializa como JSON
+    const imps  = this.getImportaciones().map(i => ({ ...i, productos: JSON.stringify(i.productos || []) }));
+    if (imps.length)   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(imps),   'Importaciones');
+
+    // Clientes
+    const clis  = this.getClientes();
+    if (clis.length)   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(clis),   'Clientes');
+
+    // Ventas — items como JSON
+    const vtas  = this.getVentas().map(v => ({ ...v, items: JSON.stringify(v.items || []) }));
+    if (vtas.length)   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vtas),   'Ventas');
+
+    // Abonos
+    const abns  = this.getAbonos();
+    if (abns.length)   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(abns),   'Abonos');
+
+    // Config — una sola fila
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ ...this.getConfig(), logo: this.getConfig().logo ? '[imagen]' : '' }]), 'Config');
+
+    if (wb.SheetNames.length === 0) { App.toast('Sin datos para exportar', 'warning'); return; }
+
+    XLSX.writeFile(wb, `importapp_backup_${this.today()}.xlsx`);
+    App.toast('Backup Excel exportado (fotos no incluidas — usa JSON para preservarlas)', 'success');
+  },
+
+  importarExcel(file) {
+    return new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const wb   = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+          const hoja = name => {
+            const ws = wb.Sheets[name];
+            return ws ? XLSX.utils.sheet_to_json(ws, { defval: '' }) : null;
+          };
+
+          const prods = hoja('Productos');
+          if (prods) {
+            this._set(this.K.PRODUCTOS, prods.map(p => ({
+              ...p,
+              foto: (p.foto === '[imagen]' || !p.foto) ? null : p.foto
+            })));
+          }
+
+          const imps = hoja('Importaciones');
+          if (imps) {
+            this._set(this.K.IMPORTACIONES, imps.map(i => ({
+              ...i,
+              productos: typeof i.productos === 'string'
+                ? (() => { try { return JSON.parse(i.productos); } catch { return []; } })()
+                : (i.productos || [])
+            })));
+          }
+
+          const clis = hoja('Clientes');
+          if (clis) this._set(this.K.CLIENTES, clis);
+
+          const vtas = hoja('Ventas');
+          if (vtas) {
+            this._set(this.K.VENTAS, vtas.map(v => ({
+              ...v,
+              items: typeof v.items === 'string'
+                ? (() => { try { return JSON.parse(v.items); } catch { return []; } })()
+                : (v.items || [])
+            })));
+          }
+
+          const abns = hoja('Abonos');
+          if (abns) this._set(this.K.ABONOS, abns);
+
+          const cfgRows = hoja('Config');
+          if (cfgRows && cfgRows.length) {
+            const c = cfgRows[0];
+            this.saveConfig({ ...c, logo: (c.logo === '[imagen]' || !c.logo) ? null : c.logo });
+          }
+
+          res(true);
+        } catch (err) { rej(err); }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  },
+
+  exportarTodo() {
+    this._toCSV('productos',     this.getProductos().map(p => ({ ...p, foto: p.foto ? '[imagen_base64]' : '' })));
+    this._toCSV('importaciones', this.getImportaciones());
+    this._toCSV('clientes',      this.getClientes());
+    this._toCSV('ventas',        this.getVentas().map(v => ({ ...v, items: JSON.stringify(v.items) })));
+    this._toCSV('abonos',        this.getAbonos());
+    App.toast('CSVs exportados correctamente', 'success');
+  },
+
+  importarJSON(file) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = e => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (data.productos) {
+            // Mantener base64 en memoria/localStorage; escribir archivos de imagen en carpeta
+            this._cache[this.K.PRODUCTOS] = data.productos;
+            localStorage.setItem(this.K.PRODUCTOS, JSON.stringify(data.productos));
+            if (this._dirHandle) this._writeProductosFile(data.productos);
+          }
+          if (data.importaciones) this._set(this.K.IMPORTACIONES, data.importaciones);
+          if (data.clientes)      this._set(this.K.CLIENTES,      data.clientes);
+          if (data.ventas)        this._set(this.K.VENTAS,        data.ventas);
+          if (data.abonos)        this._set(this.K.ABONOS,        data.abonos);
+          if (data.config)        this.saveConfig(data.config);
+          res(true);
+        } catch (err) { rej(err); }
+      };
+      r.readAsText(file);
+    });
+  },
+
+  exportarJSON() {
+    const data = {
+      productos:     this.getProductos(),
+      importaciones: this.getImportaciones(),
+      clientes:      this.getClientes(),
+      ventas:        this.getVentas(),
+      abonos:        this.getAbonos(),
+      config:        this.getConfig()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = `importapp_backup_${this.today()}.json`;
+    a.click();
+    App.toast('Backup exportado', 'success');
+  }
+};
+
+
+const Inventario = {
+  TRACKING: ['pedido', 'enviado', 'en aduana', 'en bodega', 'recibido'],
+
+  render() {
+    const todos       = Storage.getProductos();
+    const enStock     = todos.filter(p => p.estado === 'disponible');
+    const pendientes  = todos.filter(p => p.estado !== 'disponible' && p.estado !== 'agotado');
+    const invStock    = enStock.reduce((s,p) => s + (parseFloat(p.inversionTotal)||0)*(parseInt(p.stock)||0), 0);
+
+    document.getElementById('view-container').innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">📦 Inventario</h1>
+          <p class="page-subtitle">${todos.length} productos registrados</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input type="file" id="inv-import-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="Inventario.importarExcel(this)">
+          <button class="btn btn-outline" onclick="Inventario._plantillaProductos()">⬇️ Plantilla</button>
+          <button class="btn btn-outline" onclick="document.getElementById('inv-import-file').click()">⬆️ Importar Excel</button>
+          <button class="btn btn-primary" onclick="Inventario.openForm()">+ Nuevo Producto</button>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">En Stock</div>
+          <div class="stat-value" style="color:var(--success)">${enStock.length}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">En camino / Pendiente</div>
+          <div class="stat-value" style="color:var(--warning)">${pendientes.length}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Unidades disponibles</div>
+          <div class="stat-value">${enStock.reduce((s,p)=>s+(parseInt(p.stock)||0),0)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Inversión en Stock</div>
+          <div class="stat-value" style="font-size:18px">${Storage.fmt(invStock)}</div>
+        </div>
+      </div>
+
+      ${pendientes.length ? `
+      <div class="card" style="border-left:4px solid var(--warning)">
+        <div class="card-header">
+          <div class="card-title">⏳ Productos en seguimiento</div>
+          <span style="font-size:12px;color:var(--text-secondary)">Actualiza el estado de cada producto conforme avanza</span>
+        </div>
+        <div class="table-wrapper"><table>
+          <thead><tr>
+            <th>Foto</th><th>Nombre</th><th>Categoría</th>
+            <th>Cód. Importación</th><th>Costo Amazon</th><th>Peso/ud</th><th>Uds compradas</th>
+            <th>Tracking</th><th></th>
+          </tr></thead>
+          <tbody>
+            ${pendientes.map(p => `
+              <tr>
+                <td>${p.foto ? `<img src="${p.foto}" class="product-thumb">` : '<div class="product-thumb">📦</div>'}</td>
+                <td>
+                  <div style="font-weight:600">${p.nombre}</div>
+                  ${p.descripcion ? `<div style="font-size:11px;color:var(--text-secondary)">${p.descripcion.substr(0,40)}</div>` : ''}
+                </td>
+                <td>${p.categoria||'-'}</td>
+                <td style="font-size:12px;color:var(--text-secondary)">${p.codigoImportacion||'-'}</td>
+                <td>${Storage.fmt(p.costoAmazon)}</td>
+                <td>${p.peso||0} lbs</td>
+                <td>${p.unidadesCompradas||1}</td>
+                <td>${this._trackingBadge(p.trackingStatus)}</td>
+                <td>
+                  <div style="display:flex;gap:4px;flex-wrap:wrap">
+                    ${this._trackingBtns(p)}
+                    <button class="btn btn-ghost btn-sm" onclick="Inventario.openForm('${p.id}')">✏️</button>
+                    <button class="btn btn-ghost btn-sm" onclick="Inventario.del('${p.id}')">🗑️</button>
+                  </div>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table></div>
+      </div>` : ''}
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Disponibles para venta</div>
+        </div>
+        <div class="toolbar">
+          <input type="text" class="search-input" id="inv-q" placeholder="Buscar nombre, categoría..." oninput="Inventario.filter()">
+          <select class="form-control" style="width:auto" id="inv-cat" onchange="Inventario.filter()">
+            <option value="">Todas las categorías</option>
+            ${[...new Set(enStock.map(p=>p.categoria).filter(Boolean))].map(c=>`<option>${c}</option>`).join('')}
+          </select>
+        </div>
+        <div id="inv-body">${this._table(enStock)}</div>
+      </div>`;
+  },
+
+  _table(prods) {
+    if (!prods.length) return `
+      <div class="empty-state">
+        <div class="empty-icon">📦</div>
+        <h3>Sin productos en stock</h3>
+        <p>Los productos llegan aquí cuando la importación es marcada como recibida</p>
+      </div>`;
+
+    return `<div class="table-wrapper"><table>
+      <thead><tr>
+        <th>Foto</th><th>Nombre</th><th>Categoría</th>
+        <th>Inversión</th><th>% Gan.</th><th>Precio Venta</th>
+        <th>Stock</th><th>Estado</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${prods.map(p => `
+          <tr>
+            <td>${p.foto ? `<img src="${p.foto}" class="product-thumb" alt="">` : '<div class="product-thumb">📦</div>'}</td>
+            <td>
+              <div style="font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.nombre}</div>
+              ${p.descripcion ? `<div style="font-size:11px;color:var(--text-secondary)">${p.descripcion.substr(0,40)}</div>` : ''}
+            </td>
+            <td>${p.categoria||'-'}</td>
+            <td>
+              <div>${Storage.fmt(p.inversionTotal)}</div>
+              <div style="font-size:10px;color:var(--text-secondary)">Amz: ${Storage.fmt(p.costoAmazon)} · Cour: ${Storage.fmt(p.costoCourier)}</div>
+            </td>
+            <td>${p.porcentajeGanancia||0}%</td>
+            <td><strong>${Storage.fmt(p.precioVenta)}</strong></td>
+            <td><span style="font-weight:700;color:${(p.stock||0)<=0?'var(--danger)':(p.stock||0)<=3?'var(--warning)':'var(--success)'}">${p.stock||0}</span></td>
+            <td>${this._badgeEstado(p.estado)}</td>
+            <td>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-ghost btn-sm" onclick="Inventario.openForm('${p.id}')">✏️</button>
+                <button class="btn btn-ghost btn-sm" onclick="Inventario.del('${p.id}')">🗑️</button>
+              </div>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+  },
+
+  _badgeEstado(e) {
+    const m = { disponible:'success', agotado:'danger', reservado:'warning', pendiente:'secondary' };
+    return `<span class="badge badge-${m[e]||'secondary'}">${e||'-'}</span>`;
+  },
+
+  _trackingBadge(s) {
+    const m = { pedido:'info', enviado:'purple', 'en aduana':'danger', 'en bodega':'warning', recibido:'success' };
+    return `<span class="badge badge-${m[s]||'secondary'}">${s||'pedido'}</span>`;
+  },
+
+  _trackingBtns(p) {
+    const estados = this.TRACKING;
+    const idx     = estados.indexOf(p.trackingStatus || 'pedido');
+    if (idx >= estados.length - 1) return '';
+    const siguiente = estados[idx + 1];
+    return `<button class="btn btn-outline btn-sm" onclick="Inventario.avanzarTracking('${p.id}')" title="Marcar como: ${siguiente}">→ ${siguiente}</button>`;
+  },
+
+  avanzarTracking(id) {
+    const p   = Storage.getProducto(id);
+    if (!p) return;
+    const idx = this.TRACKING.indexOf(p.trackingStatus || 'pedido');
+    if (idx < this.TRACKING.length - 1) {
+      p.trackingStatus = this.TRACKING[idx + 1];
+      if (p.trackingStatus === 'recibido') {
+        p.stock  = (parseInt(p.stock) || 0) + (parseInt(p.unidadesCompradas) || 1);
+        p.estado = 'disponible';
+      }
+      Storage.saveProducto(p);
+      App.toast(`Tracking: ${p.trackingStatus}`, 'success');
+      this.render();
+    }
+  },
+
+  filter() {
+    const q   = (document.getElementById('inv-q')?.value   || '').toLowerCase();
+    const cat = document.getElementById('inv-cat')?.value  || '';
+    let p = Storage.getProductos().filter(x => x.estado === 'disponible');
+    if (q)   p = p.filter(x => `${x.nombre}${x.categoria}${x.descripcion}`.toLowerCase().includes(q));
+    if (cat) p = p.filter(x => x.categoria === cat);
+    document.getElementById('inv-body').innerHTML = this._table(p);
+  },
+
+  openForm(id) {
+    const p   = id ? (Storage.getProducto(id) || {}) : {};
+    const cfg = Storage.getConfig();
+    const pctDef = cfg.porcentajeDefault || 40;
+    window._fotoActual = p.foto || null;
+
+    App.openModal(id ? 'Editar Producto' : 'Nuevo Producto', `
+      <div class="form-group">
+        <label>Foto del producto</label>
+        <div class="photo-upload" onclick="document.getElementById('foto-inp').click()">
+          <input type="file" id="foto-inp" accept="image/*" style="display:none" onchange="Inventario._previewFoto(this)">
+          <div id="foto-wrap">
+            ${p.foto
+              ? `<img src="${p.foto}" class="photo-preview">`
+              : `<div style="font-size:32px">📷</div><div style="font-size:12px;margin-top:4px">Clic para subir foto</div>`}
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nombre *</label>
+          <input class="form-control" id="f-nom" placeholder="Ej: Conjunto niña Carter's talla 4T" value="${p.nombre||''}">
+        </div>
+        <div class="form-group">
+          <label>Categoría</label>
+          <input class="form-control" id="f-cat" placeholder="Ej: Ropa niña" value="${p.categoria||''}">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Descripción</label>
+        <textarea class="form-control" id="f-desc" rows="2" placeholder="Talla, color, características...">${p.descripcion||''}</textarea>
+      </div>
+
+      <div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Datos de compra Amazon</div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0">
+            <label>Costo unitario (USD) *</label>
+            <input class="form-control" id="f-amz" type="number" step="0.01" min="0" placeholder="0.00" value="${p.costoAmazon||''}">
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>Peso por unidad (lbs) *</label>
+            <input class="form-control" id="f-peso" type="number" step="0.01" min="0" placeholder="0.00" value="${p.peso||''}">
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>Unidades compradas *</label>
+            <input class="form-control" id="f-uds" type="number" min="1" placeholder="1" value="${p.unidadesCompradas||1}">
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:0;margin-top:10px">
+          <label>Código de importación / N° Orden Amazon</label>
+          <input class="form-control" id="f-codImp" placeholder="Ej: 113-4567890-1234567" value="${p.codigoImportacion||''}">
+        </div>
+      </div>
+
+      <div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Tracking individual</div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0">
+            <label>Estado de tracking</label>
+            <select class="form-control" id="f-track">
+              ${this.TRACKING.map(t=>`<option value="${t}" ${(p.trackingStatus||'pedido')===t?'selected':''}>${t}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>Estado inventario</label>
+            <select class="form-control" id="f-est">
+              <option value="pendiente"  ${(!p.estado||p.estado==='pendiente')?'selected':''}>pendiente</option>
+              <option value="disponible" ${p.estado==='disponible'?'selected':''}>disponible</option>
+              <option value="agotado"    ${p.estado==='agotado'?'selected':''}>agotado</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Precio de venta</div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0">
+            <label>% Ganancia</label>
+            <input class="form-control" id="f-pct" type="number" min="0" placeholder="${pctDef}" value="${p.porcentajeGanancia!==undefined?p.porcentajeGanancia:pctDef}" oninput="Inventario._calcPrecio()">
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>Precio de venta</label>
+            <input class="form-control" id="f-pventa" type="number" step="0.01" min="0" placeholder="0.00" value="${p.precioVenta||''}" oninput="Inventario._calcPct()">
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:8px">El costo courier se asignará cuando la importación sea recibida. El precio de venta se recalculará automáticamente.</div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="App.closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="Inventario.save('${id||''}')">💾 Guardar</button>
+      </div>`, true);
+  },
+
+  _previewFoto(inp) {
+    const file = inp.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const max = 500;
+        let [w, h] = [img.width, img.height];
+        if (w > max || h > max) { if (w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;} }
+        canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        window._fotoActual = canvas.toDataURL('image/jpeg', 0.78);
+        document.getElementById('foto-wrap').innerHTML = `<img src="${window._fotoActual}" class="photo-preview">`;
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  },
+
+  _calcPrecio() {
+    const amz = parseFloat(document.getElementById('f-amz')?.value)    || 0;
+    const cour= parseFloat(Storage.getProducto(document.querySelector('[id="f-nom"]')?.dataset?.id||'')?.costoCourier||0);
+    const pct = parseFloat(document.getElementById('f-pct')?.value)    || 0;
+    const inv = amz + cour;
+    const ep  = document.getElementById('f-pventa');
+    if (ep) ep.value = (inv * (1 + pct/100)).toFixed(2);
+  },
+
+  _calcPct() {
+    const amz = parseFloat(document.getElementById('f-amz')?.value)    || 0;
+    const pv  = parseFloat(document.getElementById('f-pventa')?.value) || 0;
+    if (amz > 0) {
+      const ep = document.getElementById('f-pct');
+      if (ep) ep.value = ((pv - amz) / amz * 100).toFixed(1);
+    }
+  },
+
+  save(id) {
+    const nom = document.getElementById('f-nom')?.value.trim();
+    if (!nom) { App.toast('El nombre es obligatorio', 'error'); return; }
+    const amz  = parseFloat(document.getElementById('f-amz')?.value)    || 0;
+    const pct  = parseFloat(document.getElementById('f-pct')?.value)    || 0;
+    const existing = id ? Storage.getProducto(id) : null;
+
+    Storage.saveProducto({
+      id,
+      nombre:            nom,
+      descripcion:       document.getElementById('f-desc')?.value.trim()   || '',
+      categoria:         document.getElementById('f-cat')?.value.trim()    || '',
+      estado:            document.getElementById('f-est')?.value           || 'pendiente',
+      trackingStatus:    document.getElementById('f-track')?.value         || 'pedido',
+      costoAmazon:       amz,
+      peso:              parseFloat(document.getElementById('f-peso')?.value)   || 0,
+      unidadesCompradas: parseInt(document.getElementById('f-uds')?.value)      || 1,
+      codigoImportacion: document.getElementById('f-codImp')?.value.trim() || '',
+      costoCourier:      existing?.costoCourier   || 0,
+      inversionTotal:    existing?.inversionTotal || amz,
+      porcentajeGanancia:pct,
+      precioVenta:       parseFloat(document.getElementById('f-pventa')?.value) || (amz * (1+pct/100)),
+      stock:             existing?.stock          || 0,
+      importacionId:     existing?.importacionId  || null,
+      foto:              window._fotoActual       || null,
+      fechaIngreso:      existing?.fechaIngreso   || Storage.today()
+    });
+
+    App.closeModal();
+    App.toast(id ? 'Producto actualizado' : 'Producto registrado', 'success');
+    this.render();
+  },
+
+  del(id) {
+    const p = Storage.getProducto(id);
+    App.confirm(`¿Eliminar "${p?.nombre}"?`, () => {
+      Storage.deleteProducto(id);
+      App.toast('Producto eliminado', 'success');
+      this.render();
+    });
+  },
+
+  importarExcel(inp) {
+    const file = inp.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb   = XLSX.read(data, { type: 'array' });
+        const ws   = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        const cfg  = Storage.getConfig();
+        let ok = 0, skip = 0;
+        rows.forEach(r => {
+          const nom = String(r.nombre || r.Nombre || '').trim();
+          if (!nom) { skip++; return; }
+          const amz    = parseFloat(r.costoAmazon    || r.CostoAmazon    || 0);
+          const pct    = parseFloat(r.porcentajeGanancia || r.PorcentajeGanancia || cfg.porcentajeDefault || 40);
+          const pventa = parseFloat(r.precioVenta    || r.PrecioVenta    || 0) || Math.round(amz * (1 + pct / 100) * 100) / 100;
+          const track  = String(r.trackingStatus || r.TrackingStatus || 'pedido').trim().toLowerCase();
+          const est    = String(r.estado || r.Estado || 'pendiente').trim().toLowerCase();
+          Storage.saveProducto({
+            nombre:            nom,
+            descripcion:       String(r.descripcion       || r.Descripcion       || '').trim(),
+            categoria:         String(r.categoria         || r.Categoria         || '').trim(),
+            costoAmazon:       amz,
+            peso:              parseFloat(r.peso          || r.Peso              || 0),
+            unidadesCompradas: parseInt(r.unidadesCompradas || r.UnidadesCompradas || 1) || 1,
+            codigoImportacion: String(r.codigoImportacion || r.CodigoImportacion || '').trim(),
+            porcentajeGanancia:pct,
+            precioVenta:       pventa,
+            inversionTotal:    amz,
+            costoCourier:      0,
+            stock:             parseInt(r.stock || r.Stock || 0) || 0,
+            trackingStatus:    this.TRACKING.includes(track) ? track : 'pedido',
+            estado:            ['pendiente','disponible','agotado'].includes(est) ? est : 'pendiente'
+          });
+          ok++;
+        });
+        App.toast(`${ok} productos importados${skip ? ' · ' + skip + ' omitidos (sin nombre)' : ''}`, ok > 0 ? 'success' : 'warning');
+        inp.value = '';
+        this.render();
+      } catch (err) {
+        App.toast('Error al leer el archivo. Verifica el formato.', 'error');
+        console.error(err);
+        inp.value = '';
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  },
+
+  _plantillaProductos() {
+    const encabezado = [['nombre','descripcion','categoria','costoAmazon','peso','unidadesCompradas','codigoImportacion','porcentajeGanancia','precioVenta','trackingStatus','estado']];
+    const ejemplo    = [["Conjunto Carter's T4","Conjunto niña floral","Ropa niña",15.99,0.5,2,"113-4567890-001",40,"","pedido","pendiente"]];
+    const ws = XLSX.utils.aoa_to_sheet([...encabezado, ...ejemplo]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Productos');
+    XLSX.writeFile(wb, 'plantilla_productos.xlsx');
+  }
+};
+
+
+const Importaciones = {
+  ESTADOS: ['pedido', 'en transporte', 'entregado'],
+  COLORES: { 'pedido':'#6366f1', 'en transporte':'#f59e0b', 'entregado':'#10b981' },
+  _itemsForm: [],
+
+  render() {
+    const lista   = Storage.getImportaciones().sort((a,b) => new Date(b.fechaOrden)-new Date(a.fechaOrden));
+    const invTotal = lista.reduce((s,p)=>s+this._totalPedido(p),0);
+    const enCurso  = lista.filter(p => p.estado !== 'entregado').length;
+
+    document.getElementById('view-container').innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">📦 Pedidos Amazon</h1>
+          <p class="page-subtitle">${lista.length} pedidos · ${enCurso} en curso</p>
+        </div>
+        <button class="btn btn-primary" onclick="Importaciones.openForm()">+ Nuevo Pedido</button>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value">${lista.length}</div></div>
+        <div class="stat-card"><div class="stat-label">En Curso</div><div class="stat-value" style="color:var(--warning)">${enCurso}</div></div>
+        <div class="stat-card"><div class="stat-label">Entregados</div><div class="stat-value" style="color:var(--success)">${lista.filter(p=>p.estado==='entregado').length}</div></div>
+        <div class="stat-card"><div class="stat-label">Inversión Total</div><div class="stat-value" style="font-size:18px">${Storage.fmt(invTotal)}</div></div>
+      </div>
+
+      <div class="card">
+        <div class="toolbar">
+          <input type="text" class="search-input" id="imp-q" placeholder="Buscar nombre, descripción..." oninput="Importaciones.filter()">
+          <select class="form-control" style="width:auto" id="imp-est" onchange="Importaciones.filter()">
+            <option value="">Todos los estados</option>
+            ${this.ESTADOS.map(e=>`<option>${e}</option>`).join('')}
+          </select>
+        </div>
+        <div id="imp-list">${this._renderList(lista)}</div>
+      </div>`;
+  },
+
+  // Suma todos los costos del pedido
+  _totalPedido(imp) {
+    return (parseFloat(imp.valorAmazon)||0)
+         + (parseFloat(imp.valorCourier)||0)
+         + (parseFloat(imp.costoEnvio)||0)
+         + (parseFloat(imp.impuestos)||0);
+  },
+
+  _renderList(lista) {
+    if (!lista.length) return `
+      <div class="empty-state">
+        <div class="empty-icon">📦</div>
+        <h3>Sin pedidos Amazon</h3>
+        <p>Crea primero los productos en Inventario, luego agrúpalos en un pedido Amazon</p>
+      </div>`;
+
+    return lista.map(imp => {
+      const idx   = this.ESTADOS.indexOf(imp.estado);
+      const items = imp.productos || [];
+      const total = this._totalPedido(imp);
+
+      return `
+        <div class="import-card" style="border-left-color:${this.COLORES[imp.estado]||'#94a3b8'}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+            <div style="flex:1;min-width:200px">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
+                <span style="font-size:16px;font-weight:700">${imp.nombre||'Sin nombre'}</span>
+                ${this._badge(imp.estado)}
+                <span style="font-size:12px;color:var(--text-secondary)">${items.length} producto(s)</span>
+              </div>
+              ${imp.descripcion ? `<div style="font-size:13px;color:var(--text-secondary);margin-bottom:4px">${imp.descripcion}</div>` : ''}
+              <div style="font-size:12px;color:var(--text-secondary)">
+                📅 Orden: ${Storage.fmtDate(imp.fechaOrden)}
+                ${imp.fechaEntregado ? ` · ✅ Entregado: ${Storage.fmtDate(imp.fechaEntregado)}` : ''}
+                ${imp.notas ? ` · ${imp.notas}` : ''}
+              </div>
+
+              ${items.length ? `
+              <div style="margin-top:10px;display:flex;gap:5px;flex-wrap:wrap">
+                ${items.slice(0,6).map(i => {
+                  const p = Storage.getProducto(i.productoId);
+                  return `<div style="display:flex;align-items:center;gap:4px;background:#f8fafc;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px">
+                    ${p?.foto ? `<img src="${p.foto}" style="width:18px;height:18px;border-radius:3px;object-fit:cover">` : '📦'}
+                    <span style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p?.nombre||item.nombre||'(eliminado)'}</span>
+                    <span style="color:var(--text-secondary)">×${i.unidades}</span>
+                  </div>`;
+                }).join('')}
+                ${items.length > 6 ? `<div style="font-size:11px;color:var(--text-secondary);padding:4px">+${items.length-6} más</div>` : ''}
+              </div>` : `<div style="margin-top:8px;font-size:12px;color:var(--warning)">⚠️ Sin productos asignados</div>`}
+            </div>
+
+            <div style="text-align:right;flex-shrink:0;min-width:160px">
+              <div style="font-size:12px;color:var(--text-secondary)">Peso: <strong>${imp.pesoTotal||0} lbs</strong></div>
+              <div style="font-size:12px;color:var(--text-secondary)">Amazon: ${Storage.fmt(imp.valorAmazon)}</div>
+              <div style="font-size:12px;color:var(--text-secondary)">Courier: ${Storage.fmt(imp.valorCourier)}</div>
+              ${parseFloat(imp.costoEnvio||0)>0 ? `<div style="font-size:12px;color:var(--text-secondary)">Envío: ${Storage.fmt(imp.costoEnvio)}</div>` : ''}
+              ${parseFloat(imp.impuestos||0)>0  ? `<div style="font-size:12px;color:var(--text-secondary)">Impuestos: ${Storage.fmt(imp.impuestos)}</div>` : ''}
+              <div style="font-size:15px;font-weight:700;color:var(--primary);margin-top:4px">Total: ${Storage.fmt(total)}</div>
+            </div>
+          </div>
+
+          <div class="timeline">
+            ${this.ESTADOS.map((e,i) => `
+              <div class="step ${i<idx?'done':i===idx?'active':''}">
+                <div class="step-dot">${i<idx?'✓':i+1}</div>
+                <div class="step-label">${e}</div>
+              </div>`).join('')}
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            ${imp.estado !== 'entregado' ? `
+              <button class="btn btn-success btn-sm" onclick="Importaciones.confirmarEntregar('${imp.id}')">✅ Marcar entregado</button>
+              <button class="btn btn-outline btn-sm" onclick="Importaciones.avanzar('${imp.id}')">Avanzar estado →</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="Importaciones.openForm('${imp.id}')">✏️ Editar</button>
+            ${imp.estado === 'entregado' ? `<button class="btn btn-ghost btn-sm" onclick="Importaciones.verResumen('${imp.id}')">📋 Resumen</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="Importaciones.del('${imp.id}')">🗑️</button>
+          </div>
+        </div>`;
+    }).join('');
+  },
+
+  _badge(e) {
+    const m = { 'pedido':'info', 'en transporte':'warning', 'entregado':'success' };
+    return `<span class="badge badge-${m[e]||'secondary'}">${e}</span>`;
+  },
+
+  filter() {
+    const q   = (document.getElementById('imp-q')?.value  ||'').toLowerCase();
+    const est = document.getElementById('imp-est')?.value ||'';
+    let lista = Storage.getImportaciones().sort((a,b)=>new Date(b.fechaOrden)-new Date(a.fechaOrden));
+    if (q)   lista = lista.filter(p=>`${p.nombre}${p.descripcion}`.toLowerCase().includes(q));
+    if (est) lista = lista.filter(p=>p.estado===est);
+    document.getElementById('imp-list').innerHTML = this._renderList(lista);
+  },
+
+  avanzar(id) {
+    const p = Storage.getImportacion(id);
+    if (!p) return;
+    const i = this.ESTADOS.indexOf(p.estado);
+    if (i < this.ESTADOS.length-1) {
+      p.estado = this.ESTADOS[i+1];
+      Storage.saveImportacion(p);
+      App.toast(`Estado: ${p.estado}`, 'success');
+      this.render();
+    }
+  },
+
+  // ─── Formulario ─────────────────────────────────────────────────────────────
+  openForm(id) {
+    const imp = id ? (Storage.getImportacion(id)||{}) : {};
+    const cfg = Storage.getConfig();
+    this._itemsForm = JSON.parse(JSON.stringify(imp.productos||[]));
+
+    App.openModal(id ? 'Editar Pedido Amazon' : 'Nuevo Pedido Amazon', `
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nombre del pedido *</label>
+          <input class="form-control" id="f-nom" placeholder="Ej: Pedido Mayo 2025" value="${imp.nombre||''}">
+        </div>
+        <div class="form-group">
+          <label>Estado</label>
+          <select class="form-control" id="f-est">
+            ${this.ESTADOS.map(e=>`<option ${(imp.estado||'pedido')===e?'selected':''}>${e}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Fecha del pedido *</label>
+          <input class="form-control" id="f-ford" type="date" value="${imp.fechaOrden||Storage.today()}">
+        </div>
+        <div class="form-group">
+          <label>Notas / N° seguimiento courier</label>
+          <input class="form-control" id="f-notas" placeholder="Número de tracking, observaciones..." value="${imp.notas||''}">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Descripción</label>
+        <input class="form-control" id="f-desc" placeholder="Descripción opcional del pedido" value="${imp.descripcion||''}">
+      </div>
+
+      <!-- Productos del pedido -->
+      <div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em">Productos en este pedido</div>
+          <button class="btn btn-outline btn-sm" onclick="Importaciones._abrirSelectorProducto()">+ Agregar producto</button>
+        </div>
+        <div id="f-items-list">${this._renderItemsForm()}</div>
+      </div>
+
+      <!-- Costos del pedido -->
+      <div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Costos del pedido</div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0">
+            <label>Peso total (lbs)</label>
+            <input class="form-control" id="f-peso-total" readonly style="background:#fff;font-weight:700" value="${imp.pesoTotal||0}">
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>Tarifa courier (USD / lb)</label>
+            <input class="form-control" id="f-tarifa" type="number" step="0.01" min="0" value="${imp.tarifaCourier||cfg.tarifaCourier||8}" oninput="Importaciones._recalcCourier()">
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>Courier total</label>
+            <input class="form-control" id="f-courier" type="number" step="0.01" min="0" placeholder="Auto" value="${imp.valorCourier||''}">
+          </div>
+        </div>
+        <div class="form-row" style="margin-top:10px">
+          <div class="form-group" style="margin-bottom:0">
+            <label>Costo de envío (USD)</label>
+            <input class="form-control" id="f-envio" type="number" step="0.01" min="0" placeholder="0.00" value="${imp.costoEnvio||''}" oninput="Importaciones._recalcTotales()">
+            <div style="font-size:11px;color:var(--text-secondary);margin-top:3px">Cargo de Amazon/flete adicional</div>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>Impuestos / Aduana (USD)</label>
+            <input class="form-control" id="f-imp" type="number" step="0.01" min="0" placeholder="0.00" value="${imp.impuestos||''}" oninput="Importaciones._recalcTotales()">
+            <div style="font-size:11px;color:var(--text-secondary);margin-top:3px">Se distribuirá entre productos al recibir</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resumen totales -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
+        <div style="background:#f1f5f9;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--text-secondary);font-weight:700;text-transform:uppercase">Productos</div>
+          <div id="f-sum-prods" style="font-size:20px;font-weight:700">${this._itemsForm.length}</div>
+        </div>
+        <div style="background:#f1f5f9;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--text-secondary);font-weight:700;text-transform:uppercase">Amazon</div>
+          <div id="f-sum-amz" style="font-size:16px;font-weight:700">${Storage.fmt(imp.valorAmazon||0)}</div>
+        </div>
+        <div style="background:#f1f5f9;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--text-secondary);font-weight:700;text-transform:uppercase">+ Courier/Envío/Imp.</div>
+          <div id="f-sum-extra" style="font-size:16px;font-weight:700">${Storage.fmt((parseFloat(imp.valorCourier)||0)+(parseFloat(imp.costoEnvio)||0)+(parseFloat(imp.impuestos)||0))}</div>
+        </div>
+        <div style="background:#e0e7ff;border-radius:8px;padding:10px;text-align:center;border:2px solid var(--primary)">
+          <div style="font-size:10px;color:var(--primary);font-weight:700;text-transform:uppercase">Total</div>
+          <div id="f-sum-total" style="font-size:16px;font-weight:700;color:var(--primary)">${Storage.fmt(this._totalPedido(imp))}</div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="App.closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="Importaciones.save('${id||''}')">💾 Guardar</button>
+      </div>`, true);
+
+    this._recalcTotales();
+  },
+
+  _renderItemsForm() {
+    if (!this._itemsForm.length) return `<p style="font-size:13px;color:var(--text-secondary);text-align:center;padding:10px">Sin productos. Usa "+ Agregar producto"</p>`;
+    return `<div class="table-wrapper"><table>
+      <thead><tr><th>Producto</th><th>Uds en este pedido</th><th>Peso/ud (lbs)</th><th>Peso total</th><th>Costo Amazon</th><th></th></tr></thead>
+      <tbody>
+        ${this._itemsForm.map((item,idx) => {
+          const p     = Storage.getProducto(item.productoId);
+          const pesoT = (parseFloat(item.pesoUd)||0) * (parseInt(item.unidades)||1);
+          const amzT  = (parseFloat(item.costoAmzUd)||0) * (parseInt(item.unidades)||1);
+          return `<tr>
+            <td style="font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">${p?.nombre||item.nombre||'(eliminado)'}</td>
+            <td><input type="number" min="1" value="${item.unidades||1}" style="width:60px;padding:4px 6px;border:1.5px solid var(--border);border-radius:6px;font-size:13px" onchange="Importaciones._editItem(${idx},'unidades',this.value)"></td>
+            <td><input type="number" step="0.01" min="0" value="${item.pesoUd||0}" style="width:70px;padding:4px 6px;border:1.5px solid var(--border);border-radius:6px;font-size:13px" onchange="Importaciones._editItem(${idx},'pesoUd',this.value)"></td>
+            <td style="font-weight:700">${pesoT.toFixed(2)} lbs</td>
+            <td>${Storage.fmt(amzT)}</td>
+            <td><button class="btn btn-ghost btn-sm" style="padding:3px 7px" onclick="Importaciones._removeItem(${idx})">✕</button></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table></div>`;
+  },
+
+  _abrirSelectorProducto() {
+    const yaAgregados = new Set(this._itemsForm.map(i => i.productoId));
+    const disponibles = Storage.getProductos().filter(p => !yaAgregados.has(p.id));
+
+    if (!disponibles.length) { App.toast('No hay más productos para agregar', 'info'); return; }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'sel-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML = `<div style="background:#fff;border-radius:16px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:0 25px 50px rgba(0,0,0,.25)">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border);font-size:16px;font-weight:700">Seleccionar producto</div>
+      <div style="padding:18px 22px">
+        <div style="margin-bottom:12px">
+          <input type="text" class="search-input" style="width:100%" id="sel-q" placeholder="Buscar producto..." oninput="Importaciones._filtrarSelector()">
+        </div>
+        <div id="sel-list" style="max-height:320px;overflow-y:auto">${this._renderSelectorList(disponibles)}</div>
+        <div class="modal-footer" style="margin-top:12px">
+          <button class="btn btn-ghost" onclick="Importaciones._cerrarSelector()">Cancelar</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    window._selDisponibles = disponibles;
+  },
+
+  _renderSelectorList(lista) {
+    if (!lista.length) return `<p style="color:var(--text-secondary);font-size:13px;text-align:center;padding:16px">Sin productos</p>`;
+    return lista.map(p => `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;border:1.5px solid var(--border);margin-bottom:8px;cursor:pointer;transition:border-color .15s"
+           onclick="Importaciones._seleccionar('${p.id}')"
+           onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border)'">
+        ${p.foto ? `<img src="${p.foto}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0">` : '<div style="width:44px;height:44px;background:#f1f5f9;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📦</div>'}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.nombre}</div>
+          <div style="font-size:12px;color:var(--text-secondary)">${p.categoria||''} · ${p.peso||0} lbs/ud · ${p.unidadesCompradas||1} uds · ${Storage.fmt(p.costoAmazon)}/ud</div>
+          <div style="font-size:11px">${Inventario._trackingBadge(p.trackingStatus||'pedido')}</div>
+        </div>
+      </div>`).join('');
+  },
+
+  _filtrarSelector() {
+    const q = (document.getElementById('sel-q')?.value||'').toLowerCase();
+    const lista = (window._selDisponibles||[]).filter(p =>
+      `${p.nombre}${p.categoria}`.toLowerCase().includes(q));
+    const el = document.getElementById('sel-list');
+    if (el) el.innerHTML = this._renderSelectorList(lista);
+  },
+
+  _seleccionar(productoId) {
+    const p = Storage.getProducto(productoId);
+    if (!p) return;
+    this._itemsForm.push({
+      productoId,
+      nombre:    p.nombre,
+      unidades:  p.unidadesCompradas || 1,
+      pesoUd:    p.peso || 0,
+      pesoTotal: (parseFloat(p.peso)||0) * (parseInt(p.unidadesCompradas)||1),
+      costoAmzUd:p.costoAmazon || 0
+    });
+    this._cerrarSelector();
+    this._refreshItemsForm();
+  },
+
+  _cerrarSelector() {
+    const el = document.getElementById('sel-overlay');
+    if (el) el.remove();
+    window._selDisponibles = [];
+  },
+
+  _editItem(idx, campo, valor) {
+    if (!this._itemsForm[idx]) return;
+    this._itemsForm[idx][campo] = parseFloat(valor) || parseInt(valor) || valor;
+    const item = this._itemsForm[idx];
+    item.pesoTotal = (parseFloat(item.pesoUd)||0) * (parseInt(item.unidades)||1);
+    this._recalcTotales();
+    const el = document.getElementById('f-items-list');
+    if (el) el.innerHTML = this._renderItemsForm();
+  },
+
+  _removeItem(idx) {
+    this._itemsForm.splice(idx, 1);
+    this._refreshItemsForm();
+  },
+
+  _refreshItemsForm() {
+    const el = document.getElementById('f-items-list');
+    if (el) el.innerHTML = this._renderItemsForm();
+    this._recalcTotales();
+  },
+
+  _recalcTotales() {
+    const pesoTotal  = this._itemsForm.reduce((s,i)=>s+(parseFloat(i.pesoTotal)||0),0);
+    const amzTotal   = this._itemsForm.reduce((s,i)=>s+(parseFloat(i.costoAmzUd)||0)*(parseInt(i.unidades)||1),0);
+    const tarifa     = parseFloat(document.getElementById('f-tarifa')?.value)||0;
+    const courierAuto = pesoTotal * tarifa;
+
+    const ep = document.getElementById('f-peso-total'); if (ep) ep.value = pesoTotal.toFixed(2);
+    const ec = document.getElementById('f-courier');
+    if (ec && !ec.dataset.manual) ec.value = courierAuto.toFixed(2);
+
+    const courier   = parseFloat(document.getElementById('f-courier')?.value) || courierAuto;
+    const costoEnvio = parseFloat(document.getElementById('f-envio')?.value) || 0;
+    const impuestos  = parseFloat(document.getElementById('f-imp')?.value)   || 0;
+    const extra      = courier + costoEnvio + impuestos;
+
+    const es = document.getElementById('f-sum-prods'); if (es) es.textContent = this._itemsForm.length;
+    const ea = document.getElementById('f-sum-amz');   if (ea) ea.textContent = Storage.fmt(amzTotal);
+    const ex = document.getElementById('f-sum-extra'); if (ex) ex.textContent = Storage.fmt(extra);
+    const et = document.getElementById('f-sum-total'); if (et) et.textContent = Storage.fmt(amzTotal + extra);
+  },
+
+  _recalcCourier() {
+    const el = document.getElementById('f-courier');
+    if (el) el.dataset.manual = '';
+    this._recalcTotales();
+  },
+
+  save(id) {
+    const nom = document.getElementById('f-nom')?.value.trim();
+    if (!nom) { App.toast('El nombre es obligatorio', 'error'); return; }
+    if (!this._itemsForm.length) { App.toast('Agrega al menos un producto al pedido', 'error'); return; }
+
+    const pesoTotal  = this._itemsForm.reduce((s,i)=>s+(parseFloat(i.pesoTotal)||0),0);
+    const amzTotal   = this._itemsForm.reduce((s,i)=>s+(parseFloat(i.costoAmzUd)||0)*(parseInt(i.unidades)||1),0);
+    const courier    = parseFloat(document.getElementById('f-courier')?.value) || 0;
+    const tarifa     = parseFloat(document.getElementById('f-tarifa')?.value)  || 0;
+    const costoEnvio = parseFloat(document.getElementById('f-envio')?.value)   || 0;
+    const impuestos  = parseFloat(document.getElementById('f-imp')?.value)     || 0;
+    const existing   = id ? Storage.getImportacion(id) : null;
+
+    Storage.saveImportacion({
+      id,
+      nombre:       nom,
+      descripcion:  document.getElementById('f-desc')?.value.trim()  ||'',
+      estado:       document.getElementById('f-est')?.value          ||'pedido',
+      fechaOrden:   document.getElementById('f-ford')?.value         ||Storage.today(),
+      fechaEntregado: existing?.fechaEntregado || '',
+      notas:        document.getElementById('f-notas')?.value.trim() ||'',
+      productos:    this._itemsForm.map(i=>({
+        productoId: i.productoId,
+        nombre:     i.nombre,
+        unidades:   parseInt(i.unidades)||1,
+        pesoUd:     parseFloat(i.pesoUd)||0,
+        pesoTotal:  parseFloat(i.pesoTotal)||0,
+        costoAmzUd: parseFloat(i.costoAmzUd)||0
+      })),
+      pesoTotal:    Math.round(pesoTotal   * 100) / 100,
+      valorAmazon:  Math.round(amzTotal    * 100) / 100,
+      tarifaCourier: tarifa,
+      valorCourier: courier,
+      costoEnvio:   costoEnvio,
+      impuestos:    impuestos
+    });
+
+    this._itemsForm = [];
+    App.closeModal();
+    App.toast(id ? 'Pedido actualizado' : 'Pedido registrado', 'success');
+    this.render();
+  },
+
+  // ─── Marcar entregado ────────────────────────────────────────────────────────
+  confirmarEntregar(id) {
+    const imp   = Storage.getImportacion(id);
+    const items = imp?.productos || [];
+    if (!items.length) { App.toast('No hay productos en este pedido', 'warning'); return; }
+
+    const pesoTotal  = items.reduce((s,i)=>s+parseFloat(i.pesoTotal||0),0);
+    const totalExtra = (parseFloat(imp.valorCourier)||0)
+                     + (parseFloat(imp.costoEnvio)||0)
+                     + (parseFloat(imp.impuestos)||0);
+    const cfg = Storage.getConfig();
+
+    const preview = items.map(i => {
+      const p        = Storage.getProducto(i.productoId);
+      const pesoItem = parseFloat(i.pesoTotal||0);
+      const extProp  = pesoTotal > 0 ? (pesoItem / pesoTotal) * totalExtra : 0;
+      const uds      = parseInt(i.unidades) || 1;
+      const extUnit  = uds > 0 ? extProp / uds : 0;
+      const amzUd    = parseFloat(p?.costoAmazon || i.costoAmzUd || 0);
+      const inv      = amzUd + extUnit;
+      const pct      = parseFloat(p?.porcentajeGanancia) || (cfg.porcentajeDefault || 40);
+      return { nombre: p?.nombre||i.nombre, uds, extUnit, inv, pventa: inv*(1+pct/100) };
+    });
+
+    const costoEnvioFmt  = Storage.fmt(imp.costoEnvio||0);
+    const impuestosFmt   = Storage.fmt(imp.impuestos||0);
+    const courierFmt     = Storage.fmt(imp.valorCourier||0);
+
+    App.openModal('✅ Confirmar entrega del pedido', `
+      <div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--text-secondary)">Courier</span><strong>${courierFmt}</strong></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--text-secondary)">Costo de envío</span><strong>${costoEnvioFmt}</strong></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--text-secondary)">Impuestos / Aduana</span><strong>${impuestosFmt}</strong></div>
+        <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:6px"><span style="font-weight:700">Total distribuir</span><strong style="color:var(--primary)">${Storage.fmt(totalExtra)}</strong></div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">Se distribuirá proporcionalmente por peso entre todos los productos</div>
+      </div>
+      <div style="max-height:240px;overflow-y:auto;margin-bottom:14px">
+        <div class="table-wrapper"><table>
+          <thead><tr><th>Producto</th><th>Uds</th><th>Adicional/ud</th><th>Inversión/ud</th><th>Precio Venta</th></tr></thead>
+          <tbody>
+            ${preview.map(r=>`
+              <tr>
+                <td style="font-size:12px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.nombre}</td>
+                <td>${r.uds}</td>
+                <td>${Storage.fmt(r.extUnit)}</td>
+                <td>${Storage.fmt(r.inv)}</td>
+                <td style="font-weight:700;color:var(--primary)">${Storage.fmt(r.pventa)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table></div>
+      </div>
+      <div style="background:#d1fae5;border:1px solid #6ee7b7;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px">
+        ✅ Se agregarán <strong>${preview.reduce((s,r)=>s+r.uds,0)} unidades</strong> al stock y se actualizarán costos
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="App.closeModal()">Cancelar</button>
+        <button class="btn btn-success" onclick="Importaciones._entregarConfirmado('${id}')">✅ Confirmar y actualizar stock</button>
+      </div>`, true);
+  },
+
+  _entregarConfirmado(id) {
+    Storage.recibirImportacion(id);
+    App.closeModal();
+    App.toast('¡Pedido entregado! Stock e inversión actualizados.', 'success');
+    this.render();
+  },
+
+  verResumen(id) {
+    const imp   = Storage.getImportacion(id);
+    const items = imp?.productos || [];
+    const total = this._totalPedido(imp);
+
+    App.openModal(`📋 Resumen — ${imp?.nombre||'Pedido'}`, `
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
+        <div style="background:#f8fafc;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--text-secondary);font-weight:700;text-transform:uppercase">Productos</div>
+          <div style="font-size:20px;font-weight:700">${items.length}</div>
+        </div>
+        <div style="background:#f8fafc;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--text-secondary);font-weight:700;text-transform:uppercase">Amazon</div>
+          <div style="font-size:16px;font-weight:700">${Storage.fmt(imp?.valorAmazon)}</div>
+        </div>
+        <div style="background:#f8fafc;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--text-secondary);font-weight:700;text-transform:uppercase">Courier</div>
+          <div style="font-size:16px;font-weight:700">${Storage.fmt(imp?.valorCourier)}</div>
+        </div>
+        <div style="background:#e0e7ff;border-radius:8px;padding:10px;text-align:center;border:2px solid var(--primary)">
+          <div style="font-size:10px;color:var(--primary);font-weight:700;text-transform:uppercase">Total</div>
+          <div style="font-size:16px;font-weight:700;color:var(--primary)">${Storage.fmt(total)}</div>
+        </div>
+      </div>
+      ${parseFloat(imp?.costoEnvio||0)>0 || parseFloat(imp?.impuestos||0)>0 ? `
+      <div style="background:#f8fafc;border-radius:8px;padding:10px;margin-bottom:14px;font-size:13px;display:flex;gap:20px">
+        ${parseFloat(imp?.costoEnvio||0)>0 ? `<span>Costo envío: <strong>${Storage.fmt(imp.costoEnvio)}</strong></span>` : ''}
+        ${parseFloat(imp?.impuestos||0)>0  ? `<span>Impuestos: <strong>${Storage.fmt(imp.impuestos)}</strong></span>` : ''}
+      </div>` : ''}
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Producto</th><th>Uds</th><th>Peso total</th><th>Amazon/ud</th><th>Adicional/ud</th><th>Inversión/ud</th><th>Precio Venta</th></tr></thead>
+        <tbody>
+          ${items.map(i => {
+            const p = Storage.getProducto(i.productoId);
+            return `<tr>
+              <td style="font-size:12px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p?.nombre||i.nombre}</td>
+              <td>${i.unidades}</td>
+              <td>${i.pesoTotal} lbs</td>
+              <td>${Storage.fmt(i.costoAmzUd)}</td>
+              <td>${Storage.fmt(p?.costoCourier)}</td>
+              <td>${Storage.fmt(p?.inversionTotal)}</td>
+              <td style="font-weight:700;color:var(--primary)">${Storage.fmt(p?.precioVenta)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="App.closeModal()">Cerrar</button>
+      </div>`, true);
+  },
+
+  del(id) {
+    const p = Storage.getImportacion(id);
+    App.confirm(`¿Eliminar pedido "${p?.nombre||'sin nombre'}"?`, () => {
+      Storage.deleteImportacion(id);
+      App.toast('Pedido eliminado', 'success');
+      this.render();
+    });
+  }
+};
+
+
+const Clientes = {
+  render() {
+    const lista = Storage.getClientes().sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+    document.getElementById('view-container').innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">👥 Clientes</h1>
+          <p class="page-subtitle">${lista.length} clientes registrados</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input type="file" id="cli-import-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="Clientes.importarExcel(this)">
+          <button class="btn btn-outline" onclick="Clientes._plantillaClientes()">⬇️ Plantilla</button>
+          <button class="btn btn-outline" onclick="document.getElementById('cli-import-file').click()">⬆️ Importar Excel</button>
+          <button class="btn btn-primary" onclick="Clientes.openForm()">+ Nuevo Cliente</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="toolbar">
+          <input type="text" class="search-input" id="cli-q" placeholder="Buscar nombre, teléfono, red social..." oninput="Clientes.filter()">
+        </div>
+        <div id="cli-body">${this._table(lista)}</div>
+      </div>`;
+  },
+
+  _table(lista) {
+    if (!lista.length) return `
+      <div class="empty-state">
+        <div class="empty-icon">👥</div>
+        <h3>Sin clientes</h3>
+        <p>Agrega tu primer cliente</p>
+      </div>`;
+
+    return `<div class="table-wrapper"><table>
+      <thead><tr>
+        <th>Cliente</th><th>Teléfono</th><th>Red Social</th>
+        <th>Compras</th><th>Saldo Pendiente</th><th>Registro</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${lista.map(c => {
+          const saldo = Storage.getSaldoCliente(c.id);
+          const total = Storage.getTotalVentasCliente(c.id);
+          return `
+            <tr>
+              <td>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div class="avatar">${(c.nombre[0]||'?').toUpperCase()}</div>
+                  <div>
+                    <div style="font-weight:600">${c.nombre}</div>
+                    ${c.notas ? `<div style="font-size:11px;color:var(--text-secondary)">${c.notas}</div>` : ''}
+                  </div>
+                </div>
+              </td>
+              <td>${c.telefono || '-'}</td>
+              <td>${c.redSocial ? `<span style="color:var(--primary)">@${c.redSocial}</span>` : '-'}</td>
+              <td>${Storage.fmt(total)}</td>
+              <td>
+                ${saldo > 0
+                  ? `<span style="color:var(--danger);font-weight:700">${Storage.fmt(saldo)}</span>`
+                  : `<span class="badge badge-success">Al día</span>`}
+              </td>
+              <td>${Storage.fmtDate(c.fechaRegistro)}</td>
+              <td>
+                <div style="display:flex;gap:6px">
+                  <button class="btn btn-ghost btn-sm" onclick="Clientes.verDetalle('${c.id}')">👁️</button>
+                  <button class="btn btn-ghost btn-sm" title="Imprimir etiqueta de envío" onclick="Clientes.imprimirEtiqueta('${c.id}')">🏷️</button>
+                  <button class="btn btn-ghost btn-sm" onclick="Clientes.openForm('${c.id}')">✏️</button>
+                  <button class="btn btn-ghost btn-sm" onclick="Clientes.del('${c.id}')">🗑️</button>
+                </div>
+              </td>
+            </tr>`;
+        }).join('')}
+      </tbody>
+    </table></div>`;
+  },
+
+  filter() {
+    const q = (document.getElementById('cli-q')?.value || '').toLowerCase();
+    let lista = Storage.getClientes().sort((a, b) => a.nombre.localeCompare(b.nombre));
+    if (q) lista = lista.filter(c => `${c.nombre}${c.telefono}${c.redSocial}${c.notas}`.toLowerCase().includes(q));
+    document.getElementById('cli-body').innerHTML = this._table(lista);
+  },
+
+  openForm(id) {
+    const c = id ? (Storage.getCliente(id) || {}) : {};
+
+    App.openModal(id ? 'Editar Cliente' : 'Nuevo Cliente', `
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nombre *</label>
+          <input class="form-control" id="f-nom" placeholder="Nombre completo" value="${c.nombre||''}">
+        </div>
+        <div class="form-group">
+          <label>Cédula / RUC</label>
+          <input class="form-control" id="f-ced" placeholder="Ej: 1712345678" value="${c.cedula||''}">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Teléfono</label>
+          <input class="form-control" id="f-tel" placeholder="Ej: 0991234567" value="${c.telefono||''}">
+        </div>
+        <div class="form-group">
+          <label>Correo electrónico</label>
+          <input class="form-control" id="f-correo" type="email" placeholder="ejemplo@correo.com" value="${c.correo||''}">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Dirección de envío</label>
+        <input class="form-control" id="f-dir" placeholder="Calle, número, sector..." value="${c.direccion||''}">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Instagram / Red Social</label>
+          <input class="form-control" id="f-red" placeholder="usuario (sin @)" value="${c.redSocial||''}">
+        </div>
+        <div class="form-group">
+          <label>Ciudad</label>
+          <input class="form-control" id="f-ciudad" placeholder="Ej: Quito" value="${c.ciudad||''}">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Notas</label>
+        <textarea class="form-control" id="f-notas" rows="2" placeholder="Observaciones, preferencias...">${c.notas||''}</textarea>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="App.closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="Clientes.save('${id||''}')">💾 Guardar</button>
+      </div>`);
+  },
+
+  save(id) {
+    const nom = document.getElementById('f-nom')?.value.trim();
+    if (!nom) { App.toast('El nombre es obligatorio', 'error'); return; }
+
+    Storage.saveCliente({
+      id:           id || null,
+      nombre:       nom,
+      cedula:       document.getElementById('f-ced')?.value.trim()    || '',
+      telefono:     document.getElementById('f-tel')?.value.trim()    || '',
+      correo:       document.getElementById('f-correo')?.value.trim() || '',
+      direccion:    document.getElementById('f-dir')?.value.trim()    || '',
+      redSocial:    document.getElementById('f-red')?.value.trim()    || '',
+      ciudad:       document.getElementById('f-ciudad')?.value.trim() || '',
+      notas:        document.getElementById('f-notas')?.value.trim()  || '',
+      fechaRegistro: id ? Storage.getCliente(id)?.fechaRegistro : undefined
+    });
+
+    App.closeModal();
+    App.toast(id ? 'Cliente actualizado' : 'Cliente registrado', 'success');
+    this.render();
+  },
+
+  del(id) {
+    const c = Storage.getCliente(id);
+    const saldo = Storage.getSaldoCliente(id);
+    const msg = saldo > 0
+      ? `"${c?.nombre}" tiene saldo pendiente de ${Storage.fmt(saldo)}. ¿Eliminar de todas formas?`
+      : `¿Eliminar a "${c?.nombre}"?`;
+    App.confirm(msg, () => {
+      Storage.deleteCliente(id);
+      App.toast('Cliente eliminado', 'success');
+      this.render();
+    });
+  },
+
+  importarExcel(inp) {
+    const file = inp.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb   = XLSX.read(data, { type: 'array' });
+        const ws   = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        let ok = 0, skip = 0;
+        rows.forEach(r => {
+          const nom = String(r.nombre || r.Nombre || '').trim();
+          if (!nom) { skip++; return; }
+          Storage.saveCliente({
+            nombre:    nom,
+            telefono:  String(r.telefono   || r.Telefono   || '').trim(),
+            redSocial: String(r.redSocial  || r.RedSocial  || r.instagram || r.Instagram || '').trim(),
+            ciudad:    String(r.ciudad     || r.Ciudad     || '').trim(),
+            notas:     String(r.notas      || r.Notas      || '').trim()
+          });
+          ok++;
+        });
+        App.toast(`${ok} clientes importados${skip ? ' · ' + skip + ' omitidos (sin nombre)' : ''}`, ok > 0 ? 'success' : 'warning');
+        inp.value = '';
+        this.render();
+      } catch (err) {
+        App.toast('Error al leer el archivo. Verifica el formato.', 'error');
+        console.error(err);
+        inp.value = '';
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  },
+
+  _plantillaClientes() {
+    const encabezado = [['nombre','telefono','redSocial','ciudad','notas']];
+    const ejemplo    = [['María García','0991234567','mariagarcia','Quito','Cliente frecuente']];
+    const ws = XLSX.utils.aoa_to_sheet([...encabezado, ...ejemplo]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
+    XLSX.writeFile(wb, 'plantilla_clientes.xlsx');
+  },
+
+  imprimirEtiqueta(id) {
+    const c   = Storage.getCliente(id);
+    if (!c) return;
+    const cfg = Storage.getConfig();
+    const logoHTML = cfg.logo
+      ? `<img src="${cfg.logo}" style="height:32px;margin-bottom:4px;display:block;border-radius:4px">`
+      : '';
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Etiqueta — ${c.nombre}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:Arial,sans-serif;background:#fff}
+  .toolbar{padding:12px 16px;background:#f1f5f9;display:flex;gap:10px;align-items:center;border-bottom:1px solid #e2e8f0}
+  .toolbar button{padding:8px 20px;font-size:14px;cursor:pointer;border:1px solid #94a3b8;border-radius:6px;background:#fff;font-weight:600}
+  .toolbar .btn-print{background:#6366f1;color:#fff;border-color:#6366f1}
+  .page{padding:24px}
+  .etiqueta{width:10cm;border:2px solid #1e293b;border-radius:6px;overflow:hidden;font-family:Arial,sans-serif}
+  .remitente{background:#1e293b;color:#fff;padding:10px 14px;font-size:9.5pt}
+  .remitente .biz{font-weight:700;font-size:10.5pt}
+  .separador{border:none;border-top:1.5px dashed #94a3b8;margin:0}
+  .destinatario{padding:14px}
+  .para-label{font-size:8pt;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+  .dest-nombre{font-size:14pt;font-weight:900;color:#0f172a;margin-bottom:10px;line-height:1.2}
+  .campo{display:flex;gap:6px;margin:4px 0;font-size:10pt;align-items:flex-start}
+  .campo .lbl{color:#64748b;font-size:8.5pt;min-width:60px;padding-top:1px}
+  .campo .val{color:#1e293b;font-weight:500}
+  @media print{
+    .toolbar{display:none}
+    .page{padding:4mm}
+    body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button class="btn-print" onclick="window.print()">🖨️ Imprimir</button>
+  <button onclick="window.close()">✕ Cerrar</button>
+  <span style="font-size:12px;color:#64748b">Etiqueta de envío · ${c.nombre}</span>
+</div>
+<div class="page">
+  <div class="etiqueta">
+    <div class="remitente">
+      ${logoHTML}
+      <div class="biz">DE: ${cfg.nombreNegocio || 'ImportApp'}</div>
+      ${cfg.notas ? `<div style="font-size:8pt;opacity:.75;margin-top:2px">${cfg.notas}</div>` : ''}
+    </div>
+    <hr class="separador">
+    <div class="destinatario">
+      <div class="para-label">Destinatario</div>
+      <div class="dest-nombre">${c.nombre}</div>
+      ${c.cedula    ? `<div class="campo"><span class="lbl">CI/RUC:</span><span class="val">${c.cedula}</span></div>` : ''}
+      ${c.direccion ? `<div class="campo"><span class="lbl">Dirección:</span><span class="val">${c.direccion}</span></div>` : ''}
+      ${c.ciudad    ? `<div class="campo"><span class="lbl">Ciudad:</span><span class="val">${c.ciudad}</span></div>` : ''}
+      ${c.telefono  ? `<div class="campo"><span class="lbl">Tel:</span><span class="val">${c.telefono}</span></div>` : ''}
+      ${c.correo    ? `<div class="campo"><span class="lbl">Email:</span><span class="val">${c.correo}</span></div>` : ''}
+    </div>
+  </div>
+</div>
+</body></html>`;
+
+    const win = window.open('', '_blank', 'width=520,height=480,resizable=yes');
+    if (!win) { App.toast('Activa las ventanas emergentes para imprimir etiquetas', 'warning'); return; }
+    win.document.write(html);
+    win.document.close();
+  },
+
+  verDetalle(id) {
+    const c = Storage.getCliente(id);
+    if (!c) return;
+    const ventas  = Storage.getVentas().filter(v => v.clienteId === id);
+    const saldo   = Storage.getSaldoCliente(id);
+    const totalVentas = Storage.getTotalVentasCliente(id);
+    const abonos  = Storage.getAbonosByCliente(id);
+
+    App.openModal(`👤 ${c.nombre}`, `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+        <div class="stat-card" style="border:1px solid var(--border)">
+          <div class="stat-label">Total Compras</div>
+          <div class="stat-value" style="font-size:20px">${Storage.fmt(totalVentas)}</div>
+        </div>
+        <div class="stat-card" style="border:1px solid var(--border);${saldo>0?'border-color:var(--danger)':''}">
+          <div class="stat-label">Saldo Pendiente</div>
+          <div class="stat-value" style="font-size:20px;color:${saldo>0?'var(--danger)':'var(--success)'}">${Storage.fmt(saldo)}</div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:6px;font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em">Información</div>
+      <div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;line-height:1.9">
+        ${c.cedula    ? `🪪 CI/RUC: <strong>${c.cedula}</strong><br>` : ''}
+        ${c.telefono  ? `📞 ${c.telefono}<br>` : ''}
+        ${c.correo    ? `📧 ${c.correo}<br>` : ''}
+        ${c.direccion ? `🏠 ${c.direccion}<br>` : ''}
+        ${c.ciudad    ? `📍 ${c.ciudad}<br>` : ''}
+        ${c.redSocial ? `📱 @${c.redSocial}<br>` : ''}
+        ${c.notas     ? `📝 ${c.notas}` : ''}
+      </div>
+
+      <div style="margin-bottom:6px;font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em">Historial de Ventas (${ventas.length})</div>
+      ${ventas.length
+        ? `<div style="max-height:200px;overflow-y:auto">
+            ${ventas.sort((a,b)=>new Date(b.fecha)-new Date(a.fecha)).map(v => {
+              const sv = Storage.getSaldoVenta(v.id);
+              return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+                <div>
+                  <div style="font-weight:600">${Storage.fmtDate(v.fecha)}</div>
+                  <div style="color:var(--text-secondary)">${(v.items||[]).length} producto(s)</div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-weight:700">${Storage.fmt(v.total)}</div>
+                  ${sv > 0 ? `<div style="color:var(--danger);font-size:11px">Debe: ${Storage.fmt(sv)}</div>` : `<div class="badge badge-success" style="font-size:10px">Pagado</div>`}
+                </div>
+              </div>`;
+            }).join('')}
+          </div>`
+        : `<p style="color:var(--text-secondary);font-size:13px">Sin ventas registradas</p>`}
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="App.closeModal()">Cerrar</button>
+        <button class="btn btn-outline" onclick="App.closeModal();Clientes.imprimirEtiqueta('${id}')">🏷️ Etiqueta</button>
+        <button class="btn btn-primary" onclick="App.closeModal();Ventas.openCarrito('${id}')">🛒 Nuevo Pedido Cliente</button>
+      </div>`, true);
+  }
+};
+
+
+const Ventas = {
+  _carrito: [],
+  _clienteId: null,
+
+  render() {
+    const ventas = Storage.getVentas().sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    const totalVentas  = ventas.reduce((s, v) => s + parseFloat(v.total || 0), 0);
+    const totalCobrado = ventas.reduce((s, v) => s + parseFloat(v.pagadoInicial || 0), 0)
+      + Storage.getAbonos().reduce((s, a) => s + parseFloat(a.monto || 0), 0);
+    const totalPendiente = ventas.reduce((s, v) => s + Storage.getSaldoVenta(v.id), 0);
+
+    document.getElementById('view-container').innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">🛒 Pedidos Clientes</h1>
+          <p class="page-subtitle">${ventas.length} pedidos de clientes</p>
+        </div>
+        <button class="btn btn-primary" onclick="Ventas.openCarrito()">+ Nuevo Pedido Cliente</button>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Pedidos</div>
+          <div class="stat-value" style="font-size:18px">${Storage.fmt(totalVentas)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Cobrado</div>
+          <div class="stat-value" style="font-size:18px;color:var(--success)">${Storage.fmt(totalCobrado)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Pendiente</div>
+          <div class="stat-value" style="font-size:18px;color:var(--danger)">${Storage.fmt(totalPendiente)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Nro. Pedidos</div>
+          <div class="stat-value">${ventas.length}</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="toolbar">
+          <input type="text" class="search-input" id="vta-q" placeholder="Buscar cliente, fecha..." oninput="Ventas.filter()">
+          <select class="form-control" style="width:auto" id="vta-est" onchange="Ventas.filter()">
+            <option value="">Todos los estados</option>
+            <option>pagado</option><option>parcial</option><option>pendiente</option>
+          </select>
+        </div>
+        <div id="vta-body">${this._table(ventas)}</div>
+      </div>`;
+  },
+
+  _table(ventas) {
+    if (!ventas.length) return `
+      <div class="empty-state">
+        <div class="empty-icon">🛒</div>
+        <h3>Sin pedidos de clientes</h3>
+        <p>Crea tu primer pedido cliente con el botón de arriba</p>
+      </div>`;
+
+    return `<div class="table-wrapper"><table>
+      <thead><tr>
+        <th>Fecha</th><th>Cliente</th><th>Productos</th>
+        <th>Total</th><th>Pagado Inicial</th><th>Saldo</th><th>Estado</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${ventas.map(v => {
+          const saldo = Storage.getSaldoVenta(v.id);
+          const estado = saldo <= 0 ? 'pagado' : parseFloat(v.pagadoInicial || 0) > 0 ? 'parcial' : 'pendiente';
+          return `
+            <tr>
+              <td>${Storage.fmtDate(v.fecha)}</td>
+              <td>
+                <div style="font-weight:600">${v.clienteNombre || '-'}</div>
+              </td>
+              <td style="font-size:12px;color:var(--text-secondary)">
+                ${(v.items||[]).map(i => `${i.nombre} x${i.cantidad}`).join(', ').substr(0, 60)}
+                ${((v.items||[]).map(i => `${i.nombre} x${i.cantidad}`).join(', ')).length > 60 ? '...' : ''}
+              </td>
+              <td><strong>${Storage.fmt(v.total)}</strong></td>
+              <td>${Storage.fmt(v.pagadoInicial)}</td>
+              <td style="color:${saldo>0?'var(--danger)':'var(--success)'};font-weight:700">${Storage.fmt(saldo)}</td>
+              <td>${this._badge(estado)}</td>
+              <td>
+                <div style="display:flex;gap:6px">
+                  <button class="btn btn-ghost btn-sm" onclick="Ventas.verDetalle('${v.id}')">👁️</button>
+                  ${saldo > 0 ? `<button class="btn btn-success btn-sm" onclick="Ventas.openAbono('${v.id}')">💵 Abonar</button>` : ''}
+                </div>
+              </td>
+            </tr>`;
+        }).join('')}
+      </tbody>
+    </table></div>`;
+  },
+
+  _badge(e) {
+    const m = { pagado:'success', parcial:'warning', pendiente:'danger' };
+    return `<span class="badge badge-${m[e]||'secondary'}">${e}</span>`;
+  },
+
+  filter() {
+    const q   = (document.getElementById('vta-q')?.value || '').toLowerCase();
+    const est = document.getElementById('vta-est')?.value || '';
+    let ventas = Storage.getVentas().sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+    if (q) ventas = ventas.filter(v => `${v.clienteNombre}${v.fecha}`.toLowerCase().includes(q));
+    if (est) ventas = ventas.filter(v => {
+      const s = Storage.getSaldoVenta(v.id);
+      const estado = s<=0?'pagado':parseFloat(v.pagadoInicial||0)>0?'parcial':'pendiente';
+      return estado === est;
+    });
+    document.getElementById('vta-body').innerHTML = this._table(ventas);
+  },
+
+  // ── Carrito ──
+  openCarrito(clienteIdPre) {
+    this._carrito = [];
+    this._clienteId = clienteIdPre || null;
+    const clientes = Storage.getClientes().sort((a,b)=>a.nombre.localeCompare(b.nombre));
+    const productos = Storage.getProductos().filter(p => (p.stock||0) > 0);
+
+    App.openModal('🛒 Nuevo Pedido Cliente', `
+      <div class="form-group">
+        <label>Cliente *</label>
+        <select class="form-control" id="cart-cli">
+          <option value="">-- Seleccionar cliente --</option>
+          ${clientes.map(c => `<option value="${c.id}" ${c.id===clienteIdPre?'selected':''}>${c.nombre}${Storage.getSaldoCliente(c.id)>0?' (tiene saldo pendiente)':''}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Agregar Producto</label>
+        <div style="display:flex;gap:8px">
+          <select class="form-control" id="cart-prod" style="flex:1">
+            <option value="">-- Seleccionar producto --</option>
+            ${productos.map(p => `<option value="${p.id}">${p.nombre} — ${Storage.fmt(p.precioVenta)} (stock: ${p.stock})</option>`).join('')}
+          </select>
+          <button class="btn btn-outline btn-sm" onclick="Ventas._agregarItem()" style="white-space:nowrap">+ Agregar</button>
+        </div>
+      </div>
+
+      <div style="margin-bottom:6px;font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em">Productos en el carrito</div>
+      <div id="cart-items" style="min-height:60px;margin-bottom:14px">
+        <p style="color:var(--text-secondary);font-size:13px;padding:10px 0">Agrega productos al carrito</p>
+      </div>
+      <div style="text-align:right;font-size:18px;font-weight:700;color:var(--primary);margin-bottom:16px" id="cart-total">${Storage.fmt(0)}</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Pagado en este momento</label>
+          <input class="form-control" id="cart-pagado" type="number" step="0.01" min="0" placeholder="0.00" value="0">
+        </div>
+        <div class="form-group">
+          <label>Notas</label>
+          <input class="form-control" id="cart-notas" placeholder="Observaciones...">
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="App.closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="Ventas.guardarVenta()">✅ Confirmar Pedido</button>
+      </div>`, true);
+  },
+
+  _agregarItem() {
+    const prodId = document.getElementById('cart-prod')?.value;
+    if (!prodId) { App.toast('Selecciona un producto', 'warning'); return; }
+    const prod = Storage.getProducto(prodId);
+    if (!prod) return;
+    const existing = this._carrito.find(i => i.productoId === prodId);
+    if (existing) {
+      if (existing.cantidad >= (prod.stock || 0)) { App.toast('Sin stock suficiente', 'warning'); return; }
+      existing.cantidad++;
+    } else {
+      this._carrito.push({ productoId: prodId, nombre: prod.nombre, precioUnitario: prod.precioVenta, cantidad: 1, stockMax: prod.stock || 0 });
+    }
+    this._renderCarritoItems();
+  },
+
+  _renderCarritoItems() {
+    const el = document.getElementById('cart-items');
+    const tot = document.getElementById('cart-total');
+    if (!el) return;
+    if (!this._carrito.length) {
+      el.innerHTML = `<p style="color:var(--text-secondary);font-size:13px;padding:10px 0">Agrega productos al carrito</p>`;
+      if (tot) tot.textContent = Storage.fmt(0);
+      return;
+    }
+    const total = this._carrito.reduce((s, i) => s + i.precioUnitario * i.cantidad, 0);
+    el.innerHTML = this._carrito.map((item, idx) => `
+      <div class="cart-item">
+        ${item.foto ? `<img src="${item.foto}" class="product-thumb" alt="">` : '<div class="product-thumb">📦</div>'}
+        <div class="cart-item-info">
+          <div class="cart-item-name">${item.nombre}</div>
+          <div class="cart-item-price">${Storage.fmt(item.precioUnitario)} c/u</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="qty-btn" onclick="Ventas._cambiarCant(${idx},-1)">−</button>
+          <span style="min-width:24px;text-align:center;font-weight:700">${item.cantidad}</span>
+          <button class="qty-btn" onclick="Ventas._cambiarCant(${idx},1)">+</button>
+          <span style="margin-left:6px;min-width:70px;text-align:right;font-weight:700">${Storage.fmt(item.precioUnitario * item.cantidad)}</span>
+          <button class="btn btn-ghost btn-sm" onclick="Ventas._quitarItem(${idx})" style="padding:4px 6px">✕</button>
+        </div>
+      </div>`).join('');
+    if (tot) tot.textContent = Storage.fmt(total);
+  },
+
+  _cambiarCant(idx, delta) {
+    const item = this._carrito[idx];
+    if (!item) return;
+    const nueva = item.cantidad + delta;
+    if (nueva <= 0) { this._carrito.splice(idx, 1); }
+    else if (nueva > item.stockMax) { App.toast('Sin stock suficiente', 'warning'); return; }
+    else { item.cantidad = nueva; }
+    this._renderCarritoItems();
+  },
+
+  _quitarItem(idx) { this._carrito.splice(idx, 1); this._renderCarritoItems(); },
+
+  guardarVenta() {
+    const clienteId = document.getElementById('cart-cli')?.value;
+    if (!clienteId) { App.toast('Selecciona un cliente', 'error'); return; }
+    if (!this._carrito.length) { App.toast('El carrito está vacío', 'error'); return; }
+    const cliente  = Storage.getCliente(clienteId);
+    const total    = this._carrito.reduce((s, i) => s + i.precioUnitario * i.cantidad, 0);
+    const pagado   = parseFloat(document.getElementById('cart-pagado')?.value) || 0;
+    const notas    = document.getElementById('cart-notas')?.value.trim() || '';
+
+    // Descontar stock
+    this._carrito.forEach(item => {
+      const p = Storage.getProducto(item.productoId);
+      if (p) {
+        p.stock = Math.max(0, (p.stock || 0) - item.cantidad);
+        if (p.stock === 0) p.estado = 'agotado';
+        Storage.saveProducto(p);
+      }
+    });
+
+    Storage.saveVenta({
+      clienteId,
+      clienteNombre: cliente?.nombre || '',
+      items:         this._carrito.map(i => ({ productoId:i.productoId, nombre:i.nombre, cantidad:i.cantidad, precioUnitario:i.precioUnitario })),
+      total,
+      pagadoInicial: pagado,
+      notas
+    });
+
+    this._carrito = [];
+    App.closeModal();
+    App.toast('Pedido registrado exitosamente', 'success');
+    this.render();
+  },
+
+  // ── Abono ──
+  openAbono(ventaId) {
+    const v    = Storage.getVenta(ventaId);
+    const saldo= Storage.getSaldoVenta(ventaId);
+    const abonos = Storage.getAbonosByVenta(ventaId);
+
+    App.openModal('💵 Registrar Abono', `
+      <div style="background:#f8fafc;border-radius:8px;padding:14px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span style="color:var(--text-secondary);font-size:13px">Total venta</span>
+          <span style="font-weight:700">${Storage.fmt(v?.total)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span style="color:var(--text-secondary);font-size:13px">Pagado inicial</span>
+          <span>${Storage.fmt(v?.pagadoInicial)}</span>
+        </div>
+        ${abonos.map(a => `
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
+            <span style="color:var(--text-secondary)">Abono ${Storage.fmtDate(a.fecha)}</span>
+            <span>${Storage.fmt(a.monto)}</span>
+          </div>`).join('')}
+        <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;display:flex;justify-content:space-between">
+          <span style="font-weight:700;color:var(--danger)">Saldo pendiente</span>
+          <span style="font-weight:700;color:var(--danger);font-size:16px">${Storage.fmt(saldo)}</span>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Monto a abonar *</label>
+          <input class="form-control" id="ab-monto" type="number" step="0.01" min="0.01" max="${saldo}" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label>Fecha</label>
+          <input class="form-control" id="ab-fecha" type="date" value="${Storage.today()}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Notas</label>
+        <input class="form-control" id="ab-notas" placeholder="Transferencia, efectivo...">
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="App.closeModal()">Cancelar</button>
+        <button class="btn btn-success" onclick="Ventas.saveAbono('${ventaId}','${v?.clienteId}')">💾 Registrar Abono</button>
+      </div>`);
+  },
+
+  saveAbono(ventaId, clienteId) {
+    const monto = parseFloat(document.getElementById('ab-monto')?.value);
+    if (!monto || monto <= 0) { App.toast('Ingresa un monto válido', 'error'); return; }
+    const saldo = Storage.getSaldoVenta(ventaId);
+    if (monto > saldo + 0.01) { App.toast(`El abono no puede superar el saldo (${Storage.fmt(saldo)})`, 'warning'); return; }
+
+    Storage.saveAbono({
+      ventaId,
+      clienteId,
+      monto,
+      fecha: document.getElementById('ab-fecha')?.value || Storage.today(),
+      notas: document.getElementById('ab-notas')?.value.trim() || ''
+    });
+
+    App.closeModal();
+    App.toast('Abono registrado', 'success');
+    this.render();
+  },
+
+  verDetalle(ventaId) {
+    const v = Storage.getVenta(ventaId);
+    if (!v) return;
+    const abonos = Storage.getAbonosByVenta(ventaId);
+    const saldo  = Storage.getSaldoVenta(ventaId);
+
+    App.openModal(`Pedido Cliente — ${v.clienteNombre}`, `
+      <div style="margin-bottom:14px">
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">📅 ${Storage.fmtDate(v.fecha)} · Cliente: ${v.clienteNombre}</div>
+        ${(v.items||[]).map(i => `
+          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+            <span>${i.nombre} × ${i.cantidad}</span>
+            <strong>${Storage.fmt(i.precioUnitario * i.cantidad)}</strong>
+          </div>`).join('')}
+        <div style="display:flex;justify-content:space-between;padding:10px 0;font-size:15px;font-weight:700">
+          <span>Total</span><span>${Storage.fmt(v.total)}</span>
+        </div>
+      </div>
+
+      <div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+          <span>Pagado inicial</span><span>${Storage.fmt(v.pagadoInicial)}</span>
+        </div>
+        ${abonos.map(a => `
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
+            <span style="color:var(--text-secondary)">Abono ${Storage.fmtDate(a.fecha)}${a.notas?' · '+a.notas:''}</span>
+            <span>${Storage.fmt(a.monto)}</span>
+          </div>`).join('')}
+        <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;font-weight:700">
+          <span style="color:${saldo>0?'var(--danger)':'var(--success)'}">Saldo pendiente</span>
+          <span style="color:${saldo>0?'var(--danger)':'var(--success)'}">${Storage.fmt(saldo)}</span>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="App.closeModal()">Cerrar</button>
+        ${saldo > 0 ? `<button class="btn btn-success" onclick="App.closeModal();Ventas.openAbono('${ventaId}')">💵 Abonar</button>` : ''}
+      </div>`, true);
+  }
+};
+
+
+const Cartera = {
+  render() {
+    const clientes = Storage.getClientes();
+    const conSaldo  = clientes.filter(c => Storage.getSaldoCliente(c.id) > 0)
+                              .sort((a,b) => Storage.getSaldoCliente(b.id) - Storage.getSaldoCliente(a.id));
+    const totalCartera = conSaldo.reduce((s, c) => s + Storage.getSaldoCliente(c.id), 0);
+    const totalVentas  = Storage.getVentas().reduce((s,v)=>s+parseFloat(v.total||0),0);
+    const totalCobrado = totalVentas - totalCartera;
+
+    document.getElementById('view-container').innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">💰 Cartera</h1>
+          <p class="page-subtitle">${conSaldo.length} clientes con saldo pendiente</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-outline btn-sm" onclick="Cartera.exportar('mora')">⬇️ En mora</button>
+          <button class="btn btn-outline btn-sm" onclick="Cartera.exportar('todo')">⬇️ Todo</button>
+          <button class="btn btn-outline btn-sm" onclick="Cartera._exportFecha()">⬇️ Por fechas...</button>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Cartera Total</div>
+          <div class="stat-value" style="font-size:18px;color:var(--danger)">${Storage.fmt(totalCartera)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Cobrado</div>
+          <div class="stat-value" style="font-size:18px;color:var(--success)">${Storage.fmt(totalCobrado)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Clientes en mora</div>
+          <div class="stat-value" style="color:var(--danger)">${conSaldo.length}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Clientes al día</div>
+          <div class="stat-value" style="color:var(--success)">${clientes.length - conSaldo.length}</div>
+        </div>
+      </div>
+
+      ${conSaldo.length === 0
+        ? `<div class="card"><div class="empty-state"><div class="empty-icon">🎉</div><h3>Todo al día</h3><p>No hay saldos pendientes</p></div></div>`
+        : `<div class="card">
+            <div class="card-header">
+              <div class="card-title">Clientes con saldo pendiente</div>
+            </div>
+            <div class="table-wrapper"><table>
+              <thead><tr>
+                <th>Cliente</th><th>Contacto</th><th>Total Compras</th><th>Saldo Pendiente</th><th>% Pagado</th><th></th>
+              </tr></thead>
+              <tbody>
+                ${conSaldo.map(c => {
+                  const saldo = Storage.getSaldoCliente(c.id);
+                  const total = Storage.getTotalVentasCliente(c.id);
+                  const pct   = total > 0 ? Math.round((total - saldo) / total * 100) : 0;
+                  return `
+                    <tr>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:10px">
+                          <div class="avatar">${(c.nombre[0]||'?').toUpperCase()}</div>
+                          <div style="font-weight:600">${c.nombre}</div>
+                        </div>
+                      </td>
+                      <td style="font-size:13px">
+                        ${c.telefono||''} ${c.redSocial?`<span style="color:var(--primary)">@${c.redSocial}</span>`:''}
+                      </td>
+                      <td>${Storage.fmt(total)}</td>
+                      <td><strong style="color:var(--danger)">${Storage.fmt(saldo)}</strong></td>
+                      <td style="min-width:120px">
+                        <div style="font-size:12px;margin-bottom:3px">${pct}% pagado</div>
+                        <div class="deuda-bar">
+                          <div class="deuda-fill" style="width:${pct}%"></div>
+                        </div>
+                      </td>
+                      <td>
+                        <button class="btn btn-success btn-sm" onclick="Cartera.openAbonoCliente('${c.id}')">💵 Abonar</button>
+                      </td>
+                    </tr>`;
+                }).join('')}
+              </tbody>
+            </table></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Últimos abonos registrados</div>
+            </div>
+            ${this._renderAbonos()}
+          </div>`}
+    `;
+  },
+
+  _renderAbonos() {
+    const abonos = Storage.getAbonos()
+      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+      .slice(0, 20);
+
+    if (!abonos.length) return `<p style="color:var(--text-secondary);font-size:13px">Sin abonos registrados</p>`;
+
+    return `<div class="table-wrapper"><table>
+      <thead><tr><th>Fecha</th><th>Cliente</th><th>Monto</th><th>Notas</th></tr></thead>
+      <tbody>
+        ${abonos.map(a => {
+          const c = Storage.getCliente(a.clienteId);
+          return `
+            <tr>
+              <td>${Storage.fmtDate(a.fecha)}</td>
+              <td>${c?.nombre || '-'}</td>
+              <td><strong style="color:var(--success)">${Storage.fmt(a.monto)}</strong></td>
+              <td style="color:var(--text-secondary)">${a.notas || '-'}</td>
+            </tr>`;
+        }).join('')}
+      </tbody>
+    </table></div>`;
+  },
+
+  exportar(filtro, desde, hasta) {
+    const clientes = Storage.getClientes();
+    let rows = [];
+
+    if (filtro === 'fecha') {
+      const ventasRango = Storage.getVentas().filter(v => v.fecha >= desde && v.fecha <= hasta);
+      const saldosCli = {}, totalCli = {}, ventasCli = {};
+      ventasRango.forEach(v => {
+        const s = Storage.getSaldoVenta(v.id);
+        if (!saldosCli[v.clienteId]) { saldosCli[v.clienteId] = 0; totalCli[v.clienteId] = 0; ventasCli[v.clienteId] = []; }
+        saldosCli[v.clienteId] += s;
+        totalCli[v.clienteId]  += parseFloat(v.total || 0);
+        ventasCli[v.clienteId].push(Storage.fmtDate(v.fecha));
+      });
+      rows = Object.keys(saldosCli)
+        .filter(cid => saldosCli[cid] > 0)
+        .map(cid => {
+          const c = Storage.getCliente(cid);
+          return {
+            'Cliente':              c?.nombre || cid,
+            'Teléfono':             c?.telefono || '',
+            'Red Social':           c?.redSocial ? '@' + c.redSocial : '',
+            'Ciudad':               c?.ciudad || '',
+            'Total Ventas (rango)': totalCli[cid],
+            'Saldo Pendiente':      saldosCli[cid],
+            'Fechas de ventas':     ventasCli[cid].join(', ')
+          };
+        });
+    } else {
+      rows = clientes
+        .filter(c => filtro === 'mora' ? Storage.getSaldoCliente(c.id) > 0 : true)
+        .map(c => ({
+          'Cliente':         c.nombre,
+          'Teléfono':        c.telefono    || '',
+          'Red Social':      c.redSocial   ? '@' + c.redSocial : '',
+          'Ciudad':          c.ciudad      || '',
+          'Total Compras':   Storage.getTotalVentasCliente(c.id),
+          'Saldo Pendiente': Storage.getSaldoCliente(c.id)
+        }));
+    }
+
+    if (!rows.length) { App.toast('Sin datos para exportar', 'warning'); return; }
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    // Ajustar ancho de columnas automáticamente
+    const cols = Object.keys(rows[0]).map(k => ({ wch: Math.max(k.length, 14) }));
+    ws['!cols'] = cols;
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Cartera');
+    const nombre = filtro === 'fecha'
+      ? `cartera_${desde}_al_${hasta}`
+      : `cartera_${filtro}_${Storage.today()}`;
+    XLSX.writeFile(wb, `${nombre}.xlsx`);
+    App.toast(`${rows.length} registros exportados`, 'success');
+  },
+
+  _exportFecha() {
+    const hoy      = Storage.today();
+    const inicioMes = hoy.substr(0, 7) + '-01';
+    App.openModal('📅 Exportar cartera por rango de fechas', `
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;line-height:1.6">
+        Se exportarán los clientes con saldo pendiente de ventas realizadas en el período seleccionado.
+      </p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Desde</label>
+          <input class="form-control" id="exp-desde" type="date" value="${inicioMes}">
+        </div>
+        <div class="form-group">
+          <label>Hasta</label>
+          <input class="form-control" id="exp-hasta" type="date" value="${hoy}">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="App.closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="
+          const d=document.getElementById('exp-desde').value;
+          const h=document.getElementById('exp-hasta').value;
+          if(!d||!h){App.toast('Selecciona ambas fechas','warning');return;}
+          App.closeModal();
+          Cartera.exportar('fecha',d,h);
+        ">⬇️ Exportar Excel</button>
+      </div>`);
+  },
+
+  openAbonoCliente(clienteId) {
+    const c = Storage.getCliente(clienteId);
+    const ventas = Storage.getVentas()
+      .filter(v => v.clienteId === clienteId && Storage.getSaldoVenta(v.id) > 0)
+      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+    const saldoTotal = Storage.getSaldoCliente(clienteId);
+
+    App.openModal(`💵 Abono — ${c?.nombre}`, `
+      <div style="background:#fff3f3;border:1px solid var(--danger);border-radius:8px;padding:12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:700;color:var(--danger)">Saldo total pendiente</span>
+        <span style="font-size:20px;font-weight:700;color:var(--danger)">${Storage.fmt(saldoTotal)}</span>
+      </div>
+
+      <div class="form-group">
+        <label>Aplicar abono a la venta</label>
+        <select class="form-control" id="ab-venta">
+          ${ventas.map(v => `<option value="${v.id}">
+            ${Storage.fmtDate(v.fecha)} — Saldo: ${Storage.fmt(Storage.getSaldoVenta(v.id))}
+          </option>`).join('')}
+        </select>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Monto *</label>
+          <input class="form-control" id="ab-monto" type="number" step="0.01" min="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label>Fecha</label>
+          <input class="form-control" id="ab-fecha" type="date" value="${Storage.today()}">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Forma de pago / Notas</label>
+        <input class="form-control" id="ab-notas" placeholder="Efectivo, transferencia, Nequi...">
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="App.closeModal()">Cancelar</button>
+        <button class="btn btn-success" onclick="Cartera.saveAbono('${clienteId}')">💾 Registrar Abono</button>
+      </div>`);
+  },
+
+  saveAbono(clienteId) {
+    const ventaId = document.getElementById('ab-venta')?.value;
+    const monto   = parseFloat(document.getElementById('ab-monto')?.value);
+    if (!ventaId) { App.toast('Selecciona la venta', 'error'); return; }
+    if (!monto || monto <= 0) { App.toast('Ingresa un monto válido', 'error'); return; }
+    const saldo = Storage.getSaldoVenta(ventaId);
+    if (monto > saldo + 0.01) { App.toast(`El abono supera el saldo (${Storage.fmt(saldo)})`, 'warning'); return; }
+
+    Storage.saveAbono({
+      ventaId,
+      clienteId,
+      monto,
+      fecha: document.getElementById('ab-fecha')?.value || Storage.today(),
+      notas: document.getElementById('ab-notas')?.value.trim() || ''
+    });
+
+    App.closeModal();
+    App.toast('Abono registrado', 'success');
+    this.render();
+  }
+};
+
+
+const Catalogo = {
+  _seleccionados: new Set(),
+
+  render() {
+    const productos = Storage.getProductos().filter(p => p.estado !== 'agotado');
+    const cfg = Storage.getConfig();
+    this._seleccionados = new Set();
+
+    document.getElementById('view-container').innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">📄 Catálogo PDF</h1>
+          <p class="page-subtitle">Selecciona los productos y genera el catálogo</p>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-ghost" onclick="Catalogo.selTodos(true)">Seleccionar todos</button>
+          <button class="btn btn-ghost" onclick="Catalogo.selTodos(false)">Deseleccionar</button>
+          <button class="btn btn-primary" onclick="Catalogo.generarPDF()">📄 Generar PDF</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div class="card-title">Opciones del catálogo</div></div>
+        <div class="form-row-3">
+          <div class="form-group">
+            <label>Título del catálogo</label>
+            <input class="form-control" id="cat-titulo" value="${cfg.nombreNegocio || 'Catálogo'} — ${new Date().toLocaleDateString('es')}">
+          </div>
+          <div class="form-group">
+            <label>Subtítulo / Temporada</label>
+            <input class="form-control" id="cat-subtitulo" placeholder="Ej: Colección Primavera 2025">
+          </div>
+          <div class="form-group">
+            <label>Mostrar precios</label>
+            <select class="form-control" id="cat-precios">
+              <option value="si">Sí, mostrar precios</option>
+              <option value="no">No mostrar precios</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div class="card-title">Productos disponibles</div>
+          <span id="cat-count" style="font-size:13px;color:var(--text-secondary)">0 seleccionados</span>
+        </div>
+        <div class="toolbar">
+          <input type="text" class="search-input" id="cat-q" placeholder="Buscar..." oninput="Catalogo.filter()">
+          <select class="form-control" style="width:auto" id="cat-cat" onchange="Catalogo.filter()">
+            <option value="">Todas las categorías</option>
+            ${[...new Set(productos.map(p=>p.categoria).filter(Boolean))].map(c=>`<option>${c}</option>`).join('')}
+          </select>
+        </div>
+        <div class="product-grid" id="cat-grid">
+          ${this._renderGrid(productos)}
+        </div>
+      </div>`;
+  },
+
+  _renderGrid(productos) {
+    if (!productos.length) return `<div class="empty-state"><div class="empty-icon">📦</div><h3>Sin productos</h3></div>`;
+    return productos.map(p => `
+      <div class="product-check-card ${this._seleccionados.has(p.id)?'selected':''}" onclick="Catalogo.toggle('${p.id}',this)" id="pcc-${p.id}">
+        <div class="check-badge">✓</div>
+        ${p.foto
+          ? `<img src="${p.foto}" alt="${p.nombre}">`
+          : `<div class="no-img">📦</div>`}
+        <div style="font-size:12px;font-weight:700;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.nombre}</div>
+        <div style="font-size:11px;color:var(--text-secondary)">${p.categoria||''}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--primary);margin-top:4px">${Storage.fmt(p.precioVenta)}</div>
+      </div>`).join('');
+  },
+
+  toggle(id, el) {
+    if (this._seleccionados.has(id)) { this._seleccionados.delete(id); el.classList.remove('selected'); }
+    else { this._seleccionados.add(id); el.classList.add('selected'); }
+    const cnt = document.getElementById('cat-count');
+    if (cnt) cnt.textContent = `${this._seleccionados.size} seleccionados`;
+  },
+
+  selTodos(sel) {
+    const productos = Storage.getProductos().filter(p => p.estado !== 'agotado');
+    this._seleccionados = sel ? new Set(productos.map(p=>p.id)) : new Set();
+    document.querySelectorAll('.product-check-card').forEach(el => {
+      const id = el.id.replace('pcc-','');
+      el.classList.toggle('selected', this._seleccionados.has(id));
+    });
+    const cnt = document.getElementById('cat-count');
+    if (cnt) cnt.textContent = `${this._seleccionados.size} seleccionados`;
+  },
+
+  filter() {
+    const q   = (document.getElementById('cat-q')?.value   || '').toLowerCase();
+    const cat = document.getElementById('cat-cat')?.value || '';
+    let p = Storage.getProductos().filter(x => x.estado !== 'agotado');
+    if (q)   p = p.filter(x => `${x.nombre}${x.categoria}`.toLowerCase().includes(q));
+    if (cat) p = p.filter(x => x.categoria === cat);
+    const grid = document.getElementById('cat-grid');
+    if (grid) grid.innerHTML = this._renderGrid(p);
+  },
+
+  generarPDF() {
+    if (!this._seleccionados.size) { App.toast('Selecciona al menos un producto', 'warning'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const cfg     = Storage.getConfig();
+    const titulo  = document.getElementById('cat-titulo')?.value   || cfg.nombreNegocio;
+    const subtit  = document.getElementById('cat-subtitulo')?.value|| '';
+    const mostrarPrecios = document.getElementById('cat-precios')?.value !== 'no';
+    const productos = Storage.getProductos().filter(p => this._seleccionados.has(p.id));
+
+    const W = 210, H = 297;
+    const margin  = 14;
+    const cols    = 3;
+    const colW    = (W - margin * 2) / cols;
+    const imgH    = 42;
+    const cardH   = imgH + (mostrarPrecios ? 22 : 16);
+    const gap     = 6;
+    const headerH = cfg.logo ? 36 : 28;
+
+    // Color del catálogo (configurable)
+    const hex  = cfg.catalogColor || '#ec4899';
+    const cr   = parseInt(hex.slice(1, 3), 16);
+    const cg   = parseInt(hex.slice(3, 5), 16);
+    const cb   = parseInt(hex.slice(5, 7), 16);
+
+    // ── Header ──
+    doc.setFillColor(cr, cg, cb);
+    doc.rect(0, 0, W, headerH, 'F');
+
+    // Logo (si existe) — lado izquierdo del header
+    const logoSize = 24;
+    const logoY    = (headerH - logoSize) / 2;
+    if (cfg.logo) {
+      try {
+        const fmt = cfg.logo.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+        doc.addImage(cfg.logo, fmt, margin, logoY, logoSize, logoSize, undefined, 'FAST');
+      } catch {}
+    }
+
+    // Título — centrado o desplazado si hay logo
+    const textX     = cfg.logo ? margin + logoSize + 6 : W / 2;
+    const textAlign = cfg.logo ? 'left' : 'center';
+    const titleY    = subtit ? headerH / 2 - 1 : headerH / 2 + 4;
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(cfg.logo ? 15 : 18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(titulo, textX, titleY, { align: textAlign });
+    if (subtit) {
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(subtit, textX, titleY + 8, { align: textAlign });
+    }
+
+    let x = margin, y = headerH + 6;
+    let col = 0;
+
+    productos.forEach((p, idx) => {
+      // Nueva página si no cabe
+      if (y + cardH > H - margin) {
+        doc.addPage();
+        y = margin;
+        x = margin;
+        col = 0;
+      }
+
+      // Fondo tarjeta
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(x, y, colW - gap, cardH, 3, 3, 'F');
+
+      // Imagen
+      if (p.foto) {
+        try { doc.addImage(p.foto, 'JPEG', x + 2, y + 2, colW - gap - 4, imgH - 4, undefined, 'FAST'); }
+        catch {}
+      } else {
+        doc.setFillColor(226, 232, 240);
+        doc.rect(x + 2, y + 2, colW - gap - 4, imgH - 4, 'F');
+        doc.setTextColor(100, 116, 139);
+        doc.setFontSize(8);
+        doc.text('Sin foto', x + colW / 2 - gap / 2, y + imgH / 2 + 2, { align: 'center' });
+      }
+
+      // Nombre
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'bold');
+      const lines = doc.splitTextToSize(p.nombre, colW - gap - 4);
+      doc.text(lines.slice(0, 2), x + 2, y + imgH + 5);
+
+      // Precio
+      if (mostrarPrecios) {
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(cr, cg, cb);
+        doc.text(Storage.fmt(p.precioVenta), x + 2, y + imgH + 14);
+      }
+
+      col++;
+      if (col >= cols) { col = 0; x = margin; y += cardH + gap; }
+      else { x += colW; }
+    });
+
+    // Footer
+    const pages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${cfg.nombreNegocio || ''} — Página ${i} de ${pages}`, W / 2, H - 6, { align: 'center' });
+    }
+
+    const fname = `catalogo_${(titulo).replace(/[^a-z0-9]/gi,'_').toLowerCase()}_${Storage.today()}.pdf`;
+    doc.save(fname);
+    App.toast('PDF generado correctamente', 'success');
+  }
+};
+
+
+const Reportes = {
+  render() {
+    const ventas    = Storage.getVentas();
+    const productos = Storage.getProductos();
+    const abonos    = Storage.getAbonos();
+    const imports   = Storage.getImportaciones();
+
+    const totalVentas   = ventas.reduce((s,v)=>s+parseFloat(v.total||0),0);
+    const totalInversion= imports.reduce((s,p)=>s+(parseFloat(p.valorAmazon||0)+parseFloat(p.valorCourier||0)),0);
+    const totalCobrado  = ventas.reduce((s,v)=>s+parseFloat(v.pagadoInicial||0),0)
+                        + abonos.reduce((s,a)=>s+parseFloat(a.monto||0),0);
+    const totalCartera  = ventas.reduce((s,v)=>s+Storage.getSaldoVenta(v.id),0);
+
+    // Ganancia = precio venta - costo de los productos vendidos
+    let ganancia = 0;
+    ventas.forEach(v => {
+      (v.items||[]).forEach(item => {
+        const p = Storage.getProducto(item.productoId);
+        const costo = p ? parseFloat(p.inversionTotal||0) : 0;
+        ganancia += (parseFloat(item.precioUnitario||0) - costo) * (parseInt(item.cantidad)||1);
+      });
+    });
+
+    document.getElementById('view-container').innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">📊 Reportes</h1>
+          <p class="page-subtitle">Resumen general del negocio</p>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <select class="form-control" style="width:auto" id="rep-periodo" onchange="Reportes._refrescar()">
+            <option value="todo">Todo el tiempo</option>
+            <option value="mes">Este mes</option>
+            <option value="3m">Últimos 3 meses</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card" style="border-left:4px solid var(--primary)">
+          <div class="stat-label">Total Ventas</div>
+          <div class="stat-value" style="font-size:20px">${Storage.fmt(totalVentas)}</div>
+          <div class="stat-sub">${ventas.length} transacciones</div>
+        </div>
+        <div class="stat-card" style="border-left:4px solid var(--success)">
+          <div class="stat-label">Ganancia Bruta</div>
+          <div class="stat-value" style="font-size:20px;color:var(--success)">${Storage.fmt(ganancia)}</div>
+          <div class="stat-sub">${totalVentas > 0 ? (ganancia/totalVentas*100).toFixed(1) : 0}% margen</div>
+        </div>
+        <div class="stat-card" style="border-left:4px solid var(--warning)">
+          <div class="stat-label">Inversión Importaciones</div>
+          <div class="stat-value" style="font-size:20px;color:var(--warning)">${Storage.fmt(totalInversion)}</div>
+          <div class="stat-sub">${imports.length} importaciones</div>
+        </div>
+        <div class="stat-card" style="border-left:4px solid var(--danger)">
+          <div class="stat-label">Cartera Pendiente</div>
+          <div class="stat-value" style="font-size:20px;color:var(--danger)">${Storage.fmt(totalCartera)}</div>
+          <div class="stat-sub">${Storage.fmt(totalCobrado)} cobrado</div>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-title">Ventas por mes</div>
+          <canvas id="chart-ventas-mes"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Inversión vs Ventas</div>
+          <canvas id="chart-inv-vs-venta"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-title">Productos más vendidos</div>
+          <canvas id="chart-top-prod"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Clientes con más compras</div>
+          <canvas id="chart-top-cli"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Estado del inventario por categoría</div></div>
+        <div id="rep-inv-cat"></div>
+      </div>`;
+
+    this._buildCharts(ventas, productos, imports);
+    this._buildInvCat(productos);
+  },
+
+  _buildCharts(ventas, productos, imports) {
+    // 1. Ventas por mes
+    const meses = {};
+    ventas.forEach(v => {
+      const m = (v.fecha || '').substr(0, 7);
+      if (m) meses[m] = (meses[m] || 0) + parseFloat(v.total || 0);
+    });
+    const mesesKeys = Object.keys(meses).sort().slice(-12);
+    const c1 = new Chart(document.getElementById('chart-ventas-mes'), {
+      type: 'bar',
+      data: {
+        labels: mesesKeys.map(m => { const [y,mo]=m.split('-'); return `${mo}/${y.substr(2)}`; }),
+        datasets: [{ label: 'Ventas', data: mesesKeys.map(k=>meses[k]), backgroundColor: '#6366f1', borderRadius: 6 }]
+      },
+      options: { responsive:true, plugins:{ legend:{display:false} }, scales:{ y:{ beginAtZero:true } } }
+    });
+    App.registerChart(c1);
+
+    // 2. Inversión vs Ventas (donut)
+    const totalVentas = ventas.reduce((s,v)=>s+parseFloat(v.total||0),0);
+    const totalCobrado = ventas.reduce((s,v)=>s+parseFloat(v.pagadoInicial||0),0)
+                       + Storage.getAbonos().reduce((s,a)=>s+parseFloat(a.monto||0),0);
+    const totalCartera = totalVentas - totalCobrado;
+    const totalInv = imports.reduce((s,p)=>s+(parseFloat(p.valorAmazon||0)+parseFloat(p.valorCourier||0)),0);
+    const c2 = new Chart(document.getElementById('chart-inv-vs-venta'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Cobrado', 'Cartera', 'Inversión'],
+        datasets: [{ data: [totalCobrado, totalCartera, totalInv],
+          backgroundColor: ['#10b981','#ef4444','#f59e0b'], borderWidth: 0 }]
+      },
+      options: { responsive:true, plugins:{ legend:{ position:'bottom' } }, cutout:'60%' }
+    });
+    App.registerChart(c2);
+
+    // 3. Top productos vendidos
+    const prodVentas = {};
+    ventas.forEach(v => (v.items||[]).forEach(i => {
+      prodVentas[i.nombre] = (prodVentas[i.nombre]||0) + (i.cantidad||1);
+    }));
+    const topProds = Object.entries(prodVentas).sort((a,b)=>b[1]-a[1]).slice(0,8);
+    const c3 = new Chart(document.getElementById('chart-top-prod'), {
+      type: 'bar',
+      data: {
+        labels: topProds.map(([n])=>n.length>18?n.substr(0,18)+'…':n),
+        datasets: [{ label:'Unidades', data: topProds.map(([,v])=>v), backgroundColor:'#10b981', borderRadius:6 }]
+      },
+      options: { indexAxis:'y', responsive:true, plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true}} }
+    });
+    App.registerChart(c3);
+
+    // 4. Top clientes
+    const cliVentas = {};
+    ventas.forEach(v => {
+      cliVentas[v.clienteNombre||'Sin nombre'] = (cliVentas[v.clienteNombre||'Sin nombre']||0) + parseFloat(v.total||0);
+    });
+    const topCli = Object.entries(cliVentas).sort((a,b)=>b[1]-a[1]).slice(0,8);
+    const c4 = new Chart(document.getElementById('chart-top-cli'), {
+      type: 'bar',
+      data: {
+        labels: topCli.map(([n])=>n.length>16?n.substr(0,16)+'…':n),
+        datasets: [{ label:'Compras', data: topCli.map(([,v])=>v), backgroundColor:'#6366f1', borderRadius:6 }]
+      },
+      options: { indexAxis:'y', responsive:true, plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true}} }
+    });
+    App.registerChart(c4);
+  },
+
+  _buildInvCat(productos) {
+    const cats = {};
+    productos.forEach(p => {
+      const c = p.categoria || 'Sin categoría';
+      if (!cats[c]) cats[c] = { total:0, disponibles:0, inversionStock:0 };
+      cats[c].total++;
+      if (p.estado === 'disponible') cats[c].disponibles++;
+      cats[c].inversionStock += (parseFloat(p.inversionTotal)||0) * (parseInt(p.stock)||0);
+    });
+
+    const el = document.getElementById('rep-inv-cat');
+    if (!el) return;
+    if (!Object.keys(cats).length) { el.innerHTML = `<p style="color:var(--text-secondary);font-size:13px">Sin datos</p>`; return; }
+
+    el.innerHTML = `<div class="table-wrapper"><table>
+      <thead><tr><th>Categoría</th><th>Productos</th><th>Disponibles</th><th>Inversión en Stock</th></tr></thead>
+      <tbody>
+        ${Object.entries(cats).sort((a,b)=>b[1].total-a[1].total).map(([cat,d])=>`
+          <tr>
+            <td style="font-weight:600">${cat}</td>
+            <td>${d.total}</td>
+            <td><span style="color:var(--success);font-weight:700">${d.disponibles}</span></td>
+            <td>${Storage.fmt(d.inversionStock)}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+  },
+
+  _refrescar() { this.render(); }
+};
+
+
+const Config = {
+  render() {
+    const cfg = Storage.getConfig();
+
+    document.getElementById('view-container').innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">⚙️ Configuración</h1>
+          <p class="page-subtitle">Ajustes del negocio y gestión de datos</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div class="card-title">🏪 Información del negocio</div></div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nombre del negocio</label>
+            <input class="form-control" id="cfg-nombre" placeholder="Mi Tienda" value="${cfg.nombreNegocio||''}">
+          </div>
+          <div class="form-group">
+            <label>% Ganancia por defecto</label>
+            <input class="form-control" id="cfg-pct" type="number" min="0" placeholder="40" value="${cfg.porcentajeDefault||40}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Tarifa courier por defecto (USD / lb)</label>
+            <input class="form-control" id="cfg-tarifa" type="number" step="0.01" min="0" placeholder="8.00" value="${cfg.tarifaCourier||8}">
+            <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">Se usa como valor inicial al crear una importación. Puedes ajustarlo por importación.</div>
+          </div>
+          <div class="form-group">
+            <label>Unidad de peso</label>
+            <select class="form-control" id="cfg-peso-unit">
+              <option value="lbs" ${(cfg.pesoUnidad||'lbs')==='lbs'?'selected':''}>Libras (lbs)</option>
+              <option value="kg"  ${cfg.pesoUnidad==='kg'?'selected':''}>Kilogramos (kg)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Color del catálogo PDF</label>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <input type="color" id="cfg-cat-color" value="${cfg.catalogColor||'#ec4899'}"
+              style="width:52px;height:38px;padding:3px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;background:#fff">
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              ${[
+                ['#ec4899','Rosa'],['#f97316','Naranja'],['#a855f7','Violeta'],
+                ['#06b6d4','Celeste'],['#10b981','Verde'],['#ef4444','Rojo'],
+                ['#eab308','Amarillo'],['#6366f1','Morado']
+              ].map(([c,n]) =>
+                `<button type="button" title="${n}" onclick="document.getElementById('cfg-cat-color').value='${c}'"
+                  style="width:28px;height:28px;background:${c};border:2px solid transparent;border-radius:6px;cursor:pointer;transition:transform .1s"
+                  onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform=''"
+                ></button>`
+              ).join('')}
+            </div>
+            <span style="font-size:11px;color:var(--text-secondary)">Encabezado y precios del catálogo PDF</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Logo del negocio</label>
+          <div class="photo-upload" onclick="document.getElementById('cfg-logo-inp').click()">
+            <input type="file" id="cfg-logo-inp" accept="image/*" style="display:none" onchange="Config._previewLogo(this)">
+            <div id="cfg-logo-wrap">
+              ${cfg.logo
+                ? `<img src="${cfg.logo}" style="max-height:80px;border-radius:8px" id="cfg-logo-prev">`
+                : `<div id="cfg-logo-prev" style="font-size:28px">🏪</div><div style="font-size:12px;margin-top:4px">Clic para subir logo</div>`}
+            </div>
+          </div>
+          ${cfg.logo ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="Config._borrarLogo()">✕ Quitar logo</button>` : ''}
+        </div>
+
+        <div class="form-group">
+          <label>Notas / Descripción del negocio</label>
+          <textarea class="form-control" id="cfg-notas" rows="2" placeholder="Descripción para el catálogo PDF...">${cfg.notas||''}</textarea>
+        </div>
+
+        <button class="btn btn-primary" onclick="Config.save()">💾 Guardar configuración</button>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div class="card-title">📁 Carpeta de datos (JSON en disco)</div></div>
+        ${Storage.getFolderName() ? `
+          <div style="display:flex;align-items:center;gap:10px;background:#d1fae5;border:1px solid #6ee7b7;border-radius:8px;padding:12px;margin-bottom:14px">
+            <span style="font-size:20px">✅</span>
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:13px">Carpeta activa: <code style="background:#fff;padding:2px 6px;border-radius:4px">${Storage.getFolderName()}</code></div>
+              <div style="font-size:11px;color:#065f46;margin-top:2px">Los cambios se guardan automáticamente como archivos JSON en esa carpeta.</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="Config._desconectarCarpeta()">Desconectar</button>
+          </div>` : `
+          <div style="display:flex;align-items:center;gap:10px;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px;margin-bottom:14px">
+            <span style="font-size:20px">⚠️</span>
+            <div>
+              <div style="font-weight:700;font-size:13px">Usando localStorage del navegador</div>
+              <div style="font-size:11px;color:#92400e;margin-top:2px">Los datos podrían perderse si limpias el navegador. Selecciona una carpeta para guardar directamente en disco.</div>
+            </div>
+          </div>`}
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6">
+          Al seleccionar una carpeta, la app leerá y escribirá archivos JSON directamente ahí
+          (<code>imp_productos.json</code>, <code>imp_clientes.json</code>, etc.). Los datos sobreviven
+          aunque limpies el navegador. Requiere <strong>Chrome o Edge</strong>.
+        </p>
+        <button class="btn btn-primary" onclick="Config._seleccionarCarpeta()">${Storage.getFolderName() ? '📁 Cambiar carpeta' : '📁 Seleccionar carpeta de datos'}</button>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div class="card-title">💾 Respaldo de datos</div></div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px">
+            <div style="font-weight:700;font-size:13px;margin-bottom:4px">📦 Backup JSON <span style="font-size:10px;background:#d1fae5;color:#065f46;padding:2px 6px;border-radius:99px">Recomendado</span></div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">Incluye todo: datos + fotos. Ideal para respaldar completamente.</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-primary btn-sm" onclick="Storage.exportarJSON()">⬇️ Exportar</button>
+              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('imp-json').click()">⬆️ Restaurar</button>
+              <input type="file" id="imp-json" accept=".json" style="display:none" onchange="Config.importar(this)">
+            </div>
+          </div>
+          <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px">
+            <div style="font-weight:700;font-size:13px;margin-bottom:4px">📊 Backup Excel (.xlsx)</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">Una hoja por módulo. Las fotos no se incluyen. Se puede abrir en Excel para revisar.</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-outline btn-sm" onclick="Storage.exportarExcel()">⬇️ Exportar</button>
+              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('imp-xlsx').click()">⬆️ Restaurar</button>
+              <input type="file" id="imp-xlsx" accept=".xlsx,.xls" style="display:none" onchange="Config.importarExcel(this)">
+            </div>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:12px">
+          <button class="btn btn-ghost btn-sm" onclick="Storage.exportarTodo()">⬇️ Exportar CSVs individuales</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div class="card-title">📊 Estadísticas de almacenamiento</div></div>
+        <div id="cfg-storage-stats">${this._storageStats()}</div>
+      </div>
+
+      <div class="card" style="border-color:var(--danger)">
+        <div class="card-header"><div class="card-title" style="color:var(--danger)">⚠️ Zona peligrosa</div></div>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">
+          Estas acciones eliminan datos permanentemente. Haz un backup antes de continuar.
+        </p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="Config.borrarModulo('ventas')">Borrar ventas</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="Config.borrarModulo('productos')">Borrar productos</button>
+          <button class="btn btn-danger btn-sm" onclick="Config.borrarTodo()">🗑️ Borrar todo</button>
+        </div>
+      </div>`;
+
+    window._logoActual = cfg.logo || null;
+  },
+
+  _previewLogo(inp) {
+    const file = inp.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const max = 300;
+        let [w, h] = [img.width, img.height];
+        if (w > max || h > max) {
+          if (w > h) { h = Math.round(h*max/w); w = max; }
+          else       { w = Math.round(w*max/h); h = max; }
+        }
+        canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        window._logoActual = canvas.toDataURL('image/png', 0.8);
+        document.getElementById('cfg-logo-wrap').innerHTML =
+          `<img src="${window._logoActual}" style="max-height:80px;border-radius:8px" id="cfg-logo-prev">`;
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  },
+
+  _borrarLogo() {
+    window._logoActual = null;
+    document.getElementById('cfg-logo-wrap').innerHTML =
+      `<div style="font-size:28px">🏪</div><div style="font-size:12px;margin-top:4px">Clic para subir logo</div>`;
+  },
+
+  _storageStats() {
+    const items = [
+      ['Productos',     Storage.getProductos().length],
+      ['Importaciones', Storage.getImportaciones().length],
+      ['Clientes',      Storage.getClientes().length],
+      ['Ventas',        Storage.getVentas().length],
+      ['Abonos',        Storage.getAbonos().length],
+    ];
+    let used = 0;
+    try { used = JSON.stringify(localStorage).length / 1024; } catch {}
+    return `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:12px">
+        ${items.map(([label,cnt])=>`
+          <div style="background:#f8fafc;border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:20px;font-weight:700">${cnt}</div>
+            <div style="font-size:11px;color:var(--text-secondary)">${label}</div>
+          </div>`).join('')}
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary)">
+        Almacenamiento usado: ~${used.toFixed(0)} KB / ~5,000 KB disponibles en localStorage
+      </div>`;
+  },
+
+  save() {
+    const cfg = {
+      nombreNegocio:      document.getElementById('cfg-nombre')?.value.trim() || 'ImportApp',
+      porcentajeDefault:  parseFloat(document.getElementById('cfg-pct')?.value)    || 40,
+      tarifaCourier:      parseFloat(document.getElementById('cfg-tarifa')?.value) || 8,
+      pesoUnidad:         document.getElementById('cfg-peso-unit')?.value          || 'lbs',
+      notas:              document.getElementById('cfg-notas')?.value.trim()  || '',
+      logo:               window._logoActual || null,
+      catalogColor:       document.getElementById('cfg-cat-color')?.value          || '#ec4899'
+    };
+    Storage.saveConfig(cfg);
+    App.reloadConfig();
+    App.toast('Configuración guardada', 'success');
+    this.render();
+  },
+
+  importar(inp) {
+    const file = inp.files[0];
+    if (!file) return;
+    App.confirm('¿Importar backup JSON? Los datos actuales serán reemplazados.', async () => {
+      try {
+        await Storage.importarJSON(file);
+        App.toast('Backup JSON importado correctamente', 'success');
+        App.reloadConfig();
+        this.render();
+      } catch {
+        App.toast('Error al importar. Verifica el archivo.', 'error');
+      }
+    });
+    inp.value = '';
+  },
+
+  importarExcel(inp) {
+    const file = inp.files[0];
+    if (!file) return;
+    App.confirm('¿Restaurar desde backup Excel? Los datos actuales serán reemplazados. Las fotos de productos no se restaurarán.', async () => {
+      try {
+        await Storage.importarExcel(file);
+        App.toast('Backup Excel importado correctamente', 'success');
+        App.reloadConfig();
+        this.render();
+      } catch {
+        App.toast('Error al importar. Verifica que sea un backup válido de ImportApp.', 'error');
+      }
+    });
+    inp.value = '';
+  },
+
+  async _seleccionarCarpeta() {
+    const nombre = await Storage.selectFolder();
+    if (nombre) {
+      App.toast(`Carpeta "${nombre}" vinculada. Los datos se guardarán ahí.`, 'success');
+      App.updateSyncBtn();
+      this.render();
+    }
+  },
+
+  async _desconectarCarpeta() {
+    App.confirm('¿Desconectar la carpeta? Los datos seguirán en localStorage pero no se guardarán en archivos.', async () => {
+      await Storage.disconnectFolder();
+      App.toast('Carpeta desconectada. Usando localStorage.', 'info');
+      App.updateSyncBtn();
+      this.render();
+    });
+  },
+
+  borrarModulo(modulo) {
+    const labels = { ventas:'ventas y abonos', productos:'productos' };
+    App.confirm(`¿Eliminar todos los ${labels[modulo]||modulo}? Esta acción no se puede deshacer.`, () => {
+      if (modulo === 'ventas') {
+        Storage._set(Storage.K.VENTAS, []);
+        Storage._set(Storage.K.ABONOS, []);
+      } else if (modulo === 'productos') {
+        Storage._set(Storage.K.PRODUCTOS, []);
+      }
+      App.toast(`${labels[modulo]||modulo} eliminados`, 'success');
+      this.render();
+    });
+  },
+
+  borrarTodo() {
+    App.confirm('⚠️ Se eliminarán TODOS los datos: productos, importaciones, clientes, ventas, abonos y configuración. ¿Continuar?', () => {
+      Object.values(Storage.K).forEach(k => localStorage.removeItem(k));
+      App.toast('Datos eliminados', 'success');
+      App.navigate('inventario');
+    });
+  }
+};
+
+
+const App = {
+  views: {
+    inventario:    () => Inventario.render(),
+    importaciones: () => Importaciones.render(),
+    clientes:      () => Clientes.render(),
+    ventas:        () => Ventas.render(),
+    cartera:       () => Cartera.render(),
+    catalogo:      () => Catalogo.render(),
+    reportes:      () => Reportes.render(),
+    config:        () => Config.render()
+  },
+  _charts: [],
+
+  async init() {
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        this.navigate(link.dataset.view);
+      });
+    });
+
+    // Mostrar splash mientras carga desde archivos (si hay carpeta configurada)
+    document.getElementById('view-container').innerHTML =
+      '<div style="padding:60px;text-align:center;color:var(--text-secondary);font-size:14px">Cargando datos...</div>';
+
+    await Storage.initStorage();
+    this._applyConfig();
+    this.updateSyncBtn();
+
+    const hash = location.hash.replace('#', '');
+    this.navigate(this.views[hash] ? hash : 'inventario');
+  },
+
+  navigate(view) {
+    if (!this.views[view]) view = 'inventario';
+
+    // Destroy existing Chart.js instances
+    this._charts.forEach(c => { try { c.destroy(); } catch {} });
+    this._charts = [];
+
+    document.querySelectorAll('.nav-link').forEach(l =>
+      l.classList.toggle('active', l.dataset.view === view));
+
+    location.hash = view;
+    document.getElementById('view-container').innerHTML = '';
+    this.views[view]();
+  },
+
+  registerChart(instance) { this._charts.push(instance); },
+
+  _applyConfig() {
+    const cfg = Storage.getConfig();
+    const el = document.getElementById('sidebar-title');
+    if (el) el.textContent = cfg.nombreNegocio || 'ImportApp';
+    if (cfg.logo) {
+      const wrap = document.getElementById('sidebar-logo-wrap');
+      const img  = document.getElementById('sidebar-logo');
+      if (wrap && img) { img.src = cfg.logo; wrap.style.display = 'block'; }
+    }
+  },
+
+  reloadConfig() { this._applyConfig(); },
+
+  async syncData() {
+    const btn  = document.getElementById('sync-btn');
+    const icon = btn?.querySelector('.sync-icon');
+    const lbl  = btn?.querySelector('.sync-label');
+    if (!btn) return;
+
+    if (!Storage.getFolderName()) {
+      App.toast('Selecciona una carpeta en Configuración primero', 'warning');
+      App.navigate('config');
+      return;
+    }
+
+    btn.disabled = true;
+    if (icon) icon.textContent = '⏳';
+    if (lbl)  lbl.textContent  = 'Guardando...';
+
+    const result = await Storage.syncAll();
+
+    if (result.ok) {
+      btn.className = 'sync-btn sync-ok';
+      if (icon) icon.textContent = '✅';
+      if (lbl)  lbl.textContent  = 'Guardado';
+      App.toast('Datos sincronizados en carpeta', 'success');
+      setTimeout(() => { btn.disabled = false; App.updateSyncBtn(); }, 2000);
+    } else {
+      if (icon) icon.textContent = '⚠️';
+      if (lbl)  lbl.textContent  = 'Error';
+      btn.disabled = false;
+      App.toast('No se pudo sincronizar. Verifica la carpeta.', 'error');
+      setTimeout(() => App.updateSyncBtn(), 3000);
+    }
+  },
+
+  updateSyncBtn() {
+    const btn    = document.getElementById('sync-btn');
+    const status = document.getElementById('sync-status');
+    if (!btn) return;
+
+    const folder = Storage.getFolderName();
+    btn.disabled = false;
+    const icon = btn.querySelector('.sync-icon');
+    const lbl  = btn.querySelector('.sync-label');
+
+    if (folder) {
+      btn.className = 'sync-btn sync-active';
+      if (icon) icon.textContent = '💾';
+      if (lbl)  lbl.textContent  = 'Sincronizar';
+      if (status) status.textContent = folder;
+    } else {
+      btn.className = 'sync-btn sync-inactive';
+      if (icon) icon.textContent = '💾';
+      if (lbl)  lbl.textContent  = 'Sin carpeta';
+      if (status) status.textContent = 'Configurar en ⚙️';
+    }
+  },
+
+  // ── Modal ──
+  openModal(title, bodyHtml, large = false) {
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-body').innerHTML = bodyHtml;
+    document.getElementById('modal').className = 'modal' + (large ? ' modal-lg' : '');
+    document.getElementById('modal-overlay').style.display = 'flex';
+  },
+
+  closeModal() {
+    document.getElementById('modal-overlay').style.display = 'none';
+    document.getElementById('modal-body').innerHTML = '';
+  },
+
+  // ── Toast ──
+  toast(msg, type = 'info') {
+    const c = document.getElementById('toast-container');
+    const t = document.createElement('div');
+    t.className = `toast toast-${type}`;
+    t.textContent = msg;
+    c.appendChild(t);
+    setTimeout(() => t.remove(), 3200);
+  },
+
+  // ── Confirm dialog ──
+  confirm(msg, cb) {
+    const html = `
+      <p style="margin-bottom:20px;color:#475569;line-height:1.6">${msg}</p>
+      <div class="modal-footer" style="padding:0">
+        <button class="btn btn-ghost" onclick="App.closeModal()">Cancelar</button>
+        <button class="btn btn-danger" id="confirm-yes">Confirmar</button>
+      </div>`;
+    this.openModal('¿Estás seguro?', html);
+    document.getElementById('confirm-yes').onclick = () => { this.closeModal(); cb(); };
+  }
+};
+
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target.id === 'modal-overlay') App.closeModal();
+});
+
+document.addEventListener('DOMContentLoaded', () => App.init());
+
+</script>
+</body>
+</html>
