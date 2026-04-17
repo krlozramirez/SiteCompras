@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manual de Usuario — ImportApp</title>
+<style>
+  /* ── Variables ──────────────────────────────────────────────────────────── */
+  :root {
+    --primary: #6366f1;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger:  #ef4444;
+    --text:    #1e293b;
+    --sub:     #64748b;
+    --border:  #e2e8f0;
+    --bg:      #f8fafc;
+  }
+
+  /* ── Reset ──────────────────────────────────────────────────────────────── */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: var(--text); font-size: 10.5pt; line-height: 1.65; background: #fff; }
+
+  /* ── Toolbar (solo pantalla) ─────────────────────────────────────────────── */
+  .toolbar {
+    position: fixed; top: 0; left: 0; right: 0;
+    background: var(--primary); color: #fff;
+    padding: 10px 24px; display: flex; align-items: center; gap: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.2); z-index: 999;
+  }
+  .toolbar h1 { font-size: 15px; font-weight: 700; flex: 1; }
+  .toolbar button {
+    background: rgba(255,255,255,.2); color: #fff; border: 1px solid rgba(255,255,255,.4);
+    padding: 7px 18px; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 600;
+  }
+  .toolbar button:hover { background: rgba(255,255,255,.35); }
+
+  /* ── Contenido ──────────────────────────────────────────────────────────── */
+  .wrap { max-width: 820px; margin: 0 auto; padding: 76px 40px 60px; }
+
+  /* ── Portada ─────────────────────────────────────────────────────────────── */
+  .cover {
+    text-align: center; padding: 80px 40px;
+    border-bottom: 3px solid var(--primary);
+    page-break-after: always;
+  }
+  .cover .logo-icon { font-size: 72px; margin-bottom: 20px; }
+  .cover h1 { font-size: 32pt; font-weight: 900; color: var(--primary); margin-bottom: 8px; }
+  .cover .subtitle { font-size: 15pt; color: var(--sub); margin-bottom: 32px; }
+  .cover .meta { font-size: 10pt; color: var(--sub); }
+  .cover .meta span { display: inline-block; margin: 4px 12px; }
+
+  /* ── Índice ──────────────────────────────────────────────────────────────── */
+  .toc { page-break-after: always; }
+  .toc h2 { font-size: 18pt; color: var(--primary); border-bottom: 2px solid var(--border); padding-bottom: 8px; margin-bottom: 20px; }
+  .toc ol { padding-left: 24px; }
+  .toc li { padding: 5px 0; font-size: 11pt; }
+  .toc li a { color: var(--text); text-decoration: none; }
+  .toc li a:hover { color: var(--primary); text-decoration: underline; }
+  .toc .sub { padding-left: 20px; font-size: 10pt; color: var(--sub); list-style: none; margin-top: 4px; }
+  .toc .sub li { padding: 2px 0; }
+
+  /* ── Secciones ───────────────────────────────────────────────────────────── */
+  .section { page-break-before: always; padding-top: 10px; margin-bottom: 40px; }
+  .section:first-of-type { page-break-before: avoid; }
+
+  h2.sec-title {
+    font-size: 18pt; font-weight: 800; color: var(--primary);
+    border-bottom: 3px solid var(--primary); padding-bottom: 8px;
+    margin-bottom: 20px; display: flex; align-items: center; gap: 10px;
+  }
+  h3 { font-size: 13pt; font-weight: 700; margin: 22px 0 8px; color: var(--text); }
+  h4 { font-size: 11pt; font-weight: 700; margin: 16px 0 6px; color: var(--sub); text-transform: uppercase; letter-spacing: .04em; }
+  p  { margin-bottom: 10px; }
+  ul, ol { padding-left: 22px; margin-bottom: 12px; }
+  li { margin-bottom: 4px; }
+
+  /* ── Componentes ─────────────────────────────────────────────────────────── */
+  .tip {
+    background: #eff6ff; border-left: 4px solid var(--primary);
+    border-radius: 0 8px 8px 0; padding: 10px 14px; margin: 14px 0; font-size: 10pt;
+  }
+  .tip strong { color: var(--primary); }
+
+  .warning {
+    background: #fff7ed; border-left: 4px solid var(--warning);
+    border-radius: 0 8px 8px 0; padding: 10px 14px; margin: 14px 0; font-size: 10pt;
+  }
+  .warning strong { color: var(--warning); }
+
+  .success-box {
+    background: #f0fdf4; border-left: 4px solid var(--success);
+    border-radius: 0 8px 8px 0; padding: 10px 14px; margin: 14px 0; font-size: 10pt;
+  }
+
+  .steps { counter-reset: step; padding: 0; list-style: none; margin-bottom: 16px; }
+  .steps li {
+    counter-increment: step;
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+    font-size: 10.5pt;
+  }
+  .steps li:last-child { border-bottom: none; }
+  .steps li::before {
+    content: counter(step);
+    background: var(--primary); color: #fff;
+    min-width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+  }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 10pt; }
+  th { background: var(--primary); color: #fff; padding: 8px 10px; text-align: left; font-weight: 600; }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  tr:nth-child(even) td { background: var(--bg); }
+
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 99px;
+    font-size: 9pt; font-weight: 600;
+  }
+  .b-blue   { background: #e0e7ff; color: #3730a3; }
+  .b-yellow { background: #fef3c7; color: #92400e; }
+  .b-green  { background: #d1fae5; color: #065f46; }
+  .b-red    { background: #fee2e2; color: #991b1b; }
+  .b-gray   { background: #f1f5f9; color: #475569; }
+
+  .flow {
+    display: flex; align-items: center; gap: 6px;
+    flex-wrap: wrap; margin: 12px 0; font-size: 10pt;
+  }
+  .flow .node {
+    background: var(--bg); border: 1.5px solid var(--border);
+    border-radius: 6px; padding: 5px 12px; font-weight: 600;
+  }
+  .flow .arrow { color: var(--sub); font-size: 14pt; }
+
+  .field-table td:first-child { font-weight: 600; white-space: nowrap; width: 180px; }
+  .field-table td:nth-child(2) { color: var(--sub); font-size: 9.5pt; width: 90px; }
+
+  .module-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 12px; margin: 16px 0;
+  }
+  .module-card {
+    border: 1.5px solid var(--border); border-radius: 10px;
+    padding: 14px; background: var(--bg);
+  }
+  .module-card .icon { font-size: 22px; margin-bottom: 6px; }
+  .module-card h4 { color: var(--primary); font-size: 11pt; text-transform: none; letter-spacing: 0; margin: 0 0 5px; }
+  .module-card p  { font-size: 9.5pt; color: var(--sub); margin: 0; }
+
+  /* ── Impresión ───────────────────────────────────────────────────────────── */
+  @media print {
+    .toolbar { display: none; }
+    .wrap    { padding: 20px 30px; max-width: 100%; }
+    .section { page-break-before: always; }
+    .cover   { padding: 60px 20px; }
+    a        { color: inherit; text-decoration: none; }
+    .tip, .warning, .success-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .steps li::before { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .module-card { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <h1>📦 Manual de Usuario — ImportApp</h1>
+  <button onclick="window.print()">🖨️ Guardar / Imprimir PDF</button>
+</div>
+
+<div class="wrap">
+
+<!-- ══════════════════════════════════════════════════════ PORTADA -->
+<div class="cover">
+  <div class="logo-icon">📦</div>
+  <h1>ImportApp</h1>
+  <div class="subtitle">Manual de Usuario</div>
+  <div class="meta">
+    <span>Versión 1.1</span>
+    <span>·</span>
+    <span>Aplicación portátil — sin servidor</span>
+    <span>·</span>
+    <span>Chrome / Edge</span>
+    <span>·</span>
+    <span>Sincronización GitHub multi-dispositivo</span>
+  </div>
+  <br><br>
+  <p style="font-size:10pt;color:var(--sub);max-width:500px;margin:0 auto">
+    Guía completa para la gestión de inventario, pedidos Amazon, ventas a clientes
+    y control de cartera para negocios de importación y reventa.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ ÍNDICE -->
+<div class="toc section">
+  <h2>Contenido</h2>
+  <ol>
+    <li><a href="#s1">Introducción y primeros pasos</a></li>
+    <li><a href="#s2">Configuración inicial</a>
+      <ul class="sub">
+        <li>Datos del negocio</li>
+        <li>Carpeta de datos (guardar en disco)</li>
+        <li>GitHub — sincronización en la nube</li>
+        <li>Respaldo y restauración</li>
+      </ul>
+    </li>
+    <li><a href="#s3">Inventario — gestión de productos</a>
+      <ul class="sub">
+        <li>Crear y editar productos</li>
+        <li>Tracking individual por producto</li>
+        <li>Carga masiva desde Excel</li>
+      </ul>
+    </li>
+    <li><a href="#s4">Pedidos Amazon — control de importaciones</a>
+      <ul class="sub">
+        <li>Crear un pedido Amazon</li>
+        <li>Cálculo automático de costos</li>
+        <li>Marcar como entregado</li>
+      </ul>
+    </li>
+    <li><a href="#s5">Clientes</a>
+      <ul class="sub">
+        <li>Registrar clientes</li>
+        <li>Etiqueta de envío imprimible</li>
+        <li>Carga masiva desde Excel</li>
+      </ul>
+    </li>
+    <li><a href="#s6">Pedidos Clientes — ventas y cobros</a>
+      <ul class="sub">
+        <li>Crear un pedido</li>
+        <li>Pagos parciales y abonos</li>
+      </ul>
+    </li>
+    <li><a href="#s7">Cartera — seguimiento de pagos</a></li>
+    <li><a href="#s8">Catálogo PDF</a></li>
+    <li><a href="#s9">Reportes</a></li>
+    <li><a href="#s10">Respaldo de datos</a></li>
+    <li><a href="#s11">Flujo completo del negocio</a></li>
+    <li><a href="#s12">Preguntas frecuentes</a></li>
+  </ol>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ 1. INTRODUCCIÓN -->
+<div class="section" id="s1">
+  <h2 class="sec-title">1. Introducción y primeros pasos</h2>
+
+  <p>
+    <strong>ImportApp</strong> es una aplicación portátil para gestionar un negocio de importación y reventa.
+    Funciona directamente en el navegador — no necesita internet, ni instalación, ni servidor.
+    Abre el archivo <code>index.html</code> en <strong>Google Chrome</strong> o <strong>Microsoft Edge</strong> y listo.
+  </p>
+
+  <div class="tip">
+    <strong>Recomendación:</strong> Usa siempre Chrome o Edge para tener acceso a todas las funcionalidades,
+    incluyendo guardar datos directamente en una carpeta de tu computadora.
+  </div>
+
+  <h3>Módulos disponibles</h3>
+  <div class="module-grid">
+    <div class="module-card">
+      <div class="icon">📦</div>
+      <h4>Inventario</h4>
+      <p>Registra y gestiona todos tus productos con tracking individual de estado.</p>
+    </div>
+    <div class="module-card">
+      <div class="icon">📦</div>
+      <h4>Pedidos Amazon</h4>
+      <p>Agrupa productos por pedido, calcula courier, envío e impuestos.</p>
+    </div>
+    <div class="module-card">
+      <div class="icon">👥</div>
+      <h4>Clientes</h4>
+      <p>Directorio de compradores con historial, saldo y etiquetas de envío.</p>
+    </div>
+    <div class="module-card">
+      <div class="icon">🛒</div>
+      <h4>Pedidos Clientes</h4>
+      <p>Registra ventas, controla pagos parciales y abonos.</p>
+    </div>
+    <div class="module-card">
+      <div class="icon">💰</div>
+      <h4>Cartera</h4>
+      <p>Visualiza y gestiona los saldos pendientes de cobro por cliente.</p>
+    </div>
+    <div class="module-card">
+      <div class="icon">📄</div>
+      <h4>Catálogo PDF</h4>
+      <p>Genera un catálogo imprimible con fotos y precios para compartir.</p>
+    </div>
+    <div class="module-card">
+      <div class="icon">📊</div>
+      <h4>Reportes</h4>
+      <p>Gráficos de ventas, inversión, productos más vendidos y clientes top.</p>
+    </div>
+    <div class="module-card">
+      <div class="icon">⚙️</div>
+      <h4>Configuración</h4>
+      <p>Datos del negocio, logo, tarifas, carpeta de datos y respaldos.</p>
+    </div>
+  </div>
+
+  <h3>¿Dónde se guardan los datos?</h3>
+  <p>La app ofrece tres niveles de almacenamiento, que puedes combinar:</p>
+  <table>
+    <tr><th>Nivel</th><th>Dónde</th><th>Multi-dispositivo</th></tr>
+    <tr><td>Automático</td><td>localStorage del navegador</td><td>❌ Solo este equipo</td></tr>
+    <tr><td>Carpeta local</td><td>Archivos JSON en disco (Chrome/Edge)</td><td>⚠️ Si compartes la carpeta en la nube</td></tr>
+    <tr><td>GitHub</td><td>Repositorio privado en GitHub</td><td>✅ Cualquier dispositivo con internet</td></tr>
+  </table>
+
+  <div class="warning">
+    <strong>Importante:</strong> Si limpias el caché o los datos del navegador sin tener
+    carpeta vinculada, GitHub configurado ni un backup, perderás los datos. Configura al menos
+    una de las opciones de respaldo.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ 2. CONFIGURACIÓN -->
+<div class="section" id="s2">
+  <h2 class="sec-title">2. Configuración inicial</h2>
+
+  <p>Antes de empezar a usar la app, configura los datos básicos de tu negocio.</p>
+
+  <h3>Datos del negocio</h3>
+  <table class="field-table">
+    <tr><th>Campo</th><th>Tipo</th><th>Descripción</th></tr>
+    <tr><td>Nombre del negocio</td><td>Texto</td><td>Aparece en el encabezado, catálogos y etiquetas de envío</td></tr>
+    <tr><td>% Ganancia por defecto</td><td>Número</td><td>Se aplica a nuevos productos si no se especifica uno distinto</td></tr>
+    <tr><td>Tarifa courier (USD/lb)</td><td>Número</td><td>Valor inicial al crear un pedido Amazon. Se puede ajustar por pedido</td></tr>
+    <tr><td>Unidad de peso</td><td>lbs / kg</td><td>Se usará en todo el módulo de importaciones</td></tr>
+    <tr><td>Logo del negocio</td><td>Imagen</td><td>Aparece en el catálogo PDF y en las etiquetas de envío</td></tr>
+    <tr><td>Notas del negocio</td><td>Texto</td><td>Descripción que aparece en el catálogo y etiquetas</td></tr>
+  </table>
+
+  <h3>Carpeta de datos (guardar en disco)</h3>
+  <p>Esta funcionalidad permite que la app guarde los datos directamente como archivos JSON en tu computadora, independientemente del navegador.</p>
+
+  <ol class="steps">
+    <li>Ve a <strong>Configuración</strong> desde el menú lateral</li>
+    <li>En la sección <em>"Carpeta de datos"</em>, haz clic en <strong>Seleccionar carpeta de datos</strong></li>
+    <li>Elige o crea una carpeta dedicada (ejemplo: <code>C:\Datos\ImportApp</code>)</li>
+    <li>El navegador pedirá confirmar el permiso de acceso — acepta</li>
+    <li>Los datos existentes se migran automáticamente a esa carpeta</li>
+  </ol>
+
+  <p>A partir de ese momento, cada cambio se escribe automáticamente. Los archivos generados son:</p>
+  <table>
+    <tr><th>Archivo</th><th>Contenido</th></tr>
+    <tr><td><code>imp_productos.json</code></td><td>Todos los productos</td></tr>
+    <tr><td><code>imp_importaciones.json</code></td><td>Pedidos Amazon</td></tr>
+    <tr><td><code>imp_clientes.json</code></td><td>Clientes</td></tr>
+    <tr><td><code>imp_ventas.json</code></td><td>Pedidos de clientes</td></tr>
+    <tr><td><code>imp_abonos.json</code></td><td>Abonos registrados</td></tr>
+    <tr><td><code>imp_config.json</code></td><td>Configuración del negocio</td></tr>
+  </table>
+
+  <div class="tip">
+    <strong>Próxima vez que abras la app:</strong> el navegador mostrará un banner pidiendo confirmar el acceso a la carpeta. Haz clic en "Permitir" y la app cargará los datos desde los archivos automáticamente.
+  </div>
+
+  <h3>GitHub — sincronización en la nube</h3>
+  <p>
+    Conecta la app a un repositorio privado de GitHub para acceder a tus datos
+    desde cualquier dispositivo. Los datos se sincronizan automáticamente al hacer
+    cualquier cambio (crear, editar, borrar) y se descargan al abrir la app.
+  </p>
+
+  <h4>Requisitos previos</h4>
+  <ul>
+    <li>Cuenta en <strong>github.com</strong> (gratuita)</li>
+    <li>Un <strong>repositorio privado</strong> creado (ej: <code>importapp-datos</code>)</li>
+    <li>Un <strong>Personal Access Token</strong> con permiso <code>repo</code><br>
+        <em>GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)</em></li>
+  </ul>
+
+  <h4>Pasos de configuración</h4>
+  <ol class="steps">
+    <li>Ve a <strong>Configuración → 🐙 GitHub</strong></li>
+    <li>Ingresa tu usuario de GitHub, el nombre del repositorio y el branch (<code>main</code>)</li>
+    <li>Pega tu Personal Access Token en el campo correspondiente</li>
+    <li>Haz clic en <strong>🔍 Probar conexión</strong> — verás un mensaje de éxito si todo es correcto</li>
+    <li>Haz clic en <strong>💾 Guardar configuración</strong></li>
+    <li>La próxima vez que abras la app, los datos se cargarán desde GitHub automáticamente</li>
+  </ol>
+
+  <div class="success-box">
+    <strong>Desde ese momento:</strong> cada vez que crees, edites o borres un registro,
+    la app esperará 2.5 segundos y subirá automáticamente los datos a GitHub.
+    El botón <em>Sincronizar</em> del menú lateral mostrará <code>⏳ Guardando...</code>
+    y luego <code>✅ Guardado</code>.
+  </div>
+
+  <h4>Usar en otro dispositivo</h4>
+  <ol class="steps">
+    <li>Abre <code>importapp_bundle.html</code> en el nuevo dispositivo</li>
+    <li>Ve a <strong>Configuración → 🐙 GitHub</strong> e ingresa las mismas credenciales</li>
+    <li>Cierra y vuelve a abrir la app — se descargará toda la data de GitHub automáticamente</li>
+  </ol>
+
+  <div class="tip">
+    <strong>Nota sobre imágenes:</strong> Las fotos de productos <em>no se sincronizan</em> con GitHub
+    por su tamaño. Quedan guardadas localmente. Si cambias de dispositivo, las fotos no aparecerán
+    hasta que las vuelvas a subir manualmente desde ese equipo.
+  </div>
+
+  <h4>Subir o bajar datos manualmente</h4>
+  <p>Si necesitas forzar una sincronización puedes usar los botones en la sección GitHub de Configuración:</p>
+  <table>
+    <tr><th>Botón</th><th>Acción</th><th>Cuándo usarlo</th></tr>
+    <tr><td>⬆️ Subir datos a GitHub</td><td>Sube todo lo local al repo</td><td>Primera vez, o si estuviste offline y quieres subir cambios acumulados</td></tr>
+    <tr><td>⬇️ Bajar datos de GitHub</td><td>Descarga el repo y reemplaza lo local</td><td>Cuando otro dispositivo hizo cambios y quieres traerlos ahora mismo</td></tr>
+  </table>
+
+  <h3>Respaldo y restauración</h3>
+  <table>
+    <tr><th>Tipo</th><th>Cuándo usarlo</th><th>Incluye fotos</th></tr>
+    <tr><td>Backup JSON</td><td>Respaldo completo, antes de cambios importantes</td><td>✅ Sí</td></tr>
+    <tr><td>Backup Excel (.xlsx)</td><td>Revisión en Excel, respaldo liviano diario</td><td>❌ No</td></tr>
+    <tr><td>Exportar CSVs</td><td>Análisis en hojas de cálculo por módulo</td><td>❌ No</td></tr>
+  </table>
+  <p>Para <strong>restaurar</strong>: usa el botón <em>"⬆️ Restaurar"</em> junto al tipo de respaldo correspondiente. Los datos actuales serán reemplazados.</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ 3. INVENTARIO -->
+<div class="section" id="s3">
+  <h2 class="sec-title">3. Inventario</h2>
+
+  <p>
+    El inventario es el corazón de la app. Aquí registras cada producto que compras en Amazon.
+    Cada producto tiene su propio estado de tracking, independiente de los pedidos Amazon.
+  </p>
+
+  <h3>Crear un producto</h3>
+  <ol class="steps">
+    <li>Haz clic en <strong>+ Nuevo Producto</strong></li>
+    <li>Sube una foto (opcional, se comprime automáticamente)</li>
+    <li>Ingresa nombre y categoría</li>
+    <li>En la sección <em>Datos de compra Amazon</em>: costo unitario, peso por unidad (lbs), unidades compradas y código de orden Amazon</li>
+    <li>En <em>Tracking individual</em>: estado de tracking y estado en inventario</li>
+    <li>En <em>Precio de venta</em>: ingresa el % de ganancia o el precio directo — se calculan mutuamente</li>
+    <li>Guarda</li>
+  </ol>
+
+  <div class="tip">
+    <strong>Precio de venta:</strong> Al crear el producto solo tienes el costo Amazon. El costo courier/envío/impuestos se calculará automáticamente cuando recibas el pedido Amazon. El precio de venta se recalculará en ese momento.
+  </div>
+
+  <h3>Campos del producto</h3>
+  <table class="field-table">
+    <tr><th>Campo</th><th>Tipo</th><th>Descripción</th></tr>
+    <tr><td>Nombre</td><td>Texto *</td><td>Nombre del artículo</td></tr>
+    <tr><td>Categoría</td><td>Texto</td><td>Para filtrar y agrupar en reportes</td></tr>
+    <tr><td>Costo unitario (USD)</td><td>Número</td><td>Precio en Amazon por unidad</td></tr>
+    <tr><td>Peso por unidad (lbs)</td><td>Número</td><td>Se usa para distribuir el costo courier</td></tr>
+    <tr><td>Unidades compradas</td><td>Número</td><td>Cuántas unidades compraste de este artículo</td></tr>
+    <tr><td>Código de importación</td><td>Texto</td><td>Número de orden Amazon u otro código de referencia</td></tr>
+    <tr><td>% Ganancia</td><td>Número</td><td>Porcentaje sobre el costo total de inversión</td></tr>
+    <tr><td>Precio de venta</td><td>Número</td><td>Se calcula automáticamente o se ingresa manualmente</td></tr>
+  </table>
+
+  <h3>Tracking individual</h3>
+  <p>Cada producto tiene su propio estado de seguimiento, <strong>independiente</strong> de los pedidos Amazon:</p>
+
+  <div class="flow">
+    <div class="node">📋 pedido</div><div class="arrow">→</div>
+    <div class="node">✈️ enviado</div><div class="arrow">→</div>
+    <div class="node">🏛️ en aduana</div><div class="arrow">→</div>
+    <div class="node">🏭 en bodega</div><div class="arrow">→</div>
+    <div class="node">✅ recibido</div>
+  </div>
+
+  <p>
+    Los productos con tracking activo (que aún no están disponibles) aparecen en la sección
+    <em>"Productos en seguimiento"</em> con un botón para avanzar al siguiente estado.
+    Cuando llega a <em>recibido</em>, el stock aumenta automáticamente y el producto pasa a disponible.
+  </p>
+
+  <h3>Vista del inventario disponible</h3>
+  <p>Los productos con estado <em>disponible</em> aparecen en la tabla principal. Puedes filtrar por nombre, categoría o buscar texto libre. La tabla muestra:</p>
+  <ul>
+    <li><strong>Inversión total</strong> por unidad (costo Amazon + costo adicional proporcional del pedido Amazon)</li>
+    <li><strong>Precio de venta</strong> sugerido</li>
+    <li><strong>Stock</strong> disponible (en rojo si &lt; 1, en amarillo si ≤ 3)</li>
+  </ul>
+
+  <h3>Carga masiva desde Excel</h3>
+  <ol class="steps">
+    <li>Haz clic en <strong>⬇️ Plantilla</strong> para descargar el archivo de ejemplo</li>
+    <li>Llena el Excel con tus productos (una fila por producto)</li>
+    <li>Haz clic en <strong>⬆️ Importar Excel</strong> y selecciona el archivo</li>
+    <li>La app reportará cuántos productos se importaron y cuántos se omitieron</li>
+  </ol>
+
+  <div class="tip">
+    <strong>Columnas requeridas en el Excel:</strong><br>
+    <code>nombre</code> (obligatorio), <code>categoria</code>, <code>costoAmazon</code>, <code>peso</code>,
+    <code>unidadesCompradas</code>, <code>codigoImportacion</code>, <code>porcentajeGanancia</code>,
+    <code>precioVenta</code>, <code>trackingStatus</code>, <code>estado</code>, <code>descripcion</code>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ 4. PEDIDOS AMAZON -->
+<div class="section" id="s4">
+  <h2 class="sec-title">4. Pedidos Amazon</h2>
+
+  <p>
+    Un pedido Amazon agrupa varios productos que vienen en el mismo paquete o envío.
+    Sirve para calcular el peso total y distribuir los costos de courier, envío e impuestos
+    proporcionalmente entre los productos.
+  </p>
+
+  <h3>Flujo de estados</h3>
+  <div class="flow">
+    <div class="node" style="border-color:#6366f1">📋 pedido</div><div class="arrow">→</div>
+    <div class="node" style="border-color:#f59e0b">🚚 en transporte</div><div class="arrow">→</div>
+    <div class="node" style="border-color:#10b981">✅ entregado</div>
+  </div>
+
+  <h3>Crear un pedido Amazon</h3>
+  <ol class="steps">
+    <li>Haz clic en <strong>+ Nuevo Pedido</strong></li>
+    <li>Ingresa el nombre del pedido (ej: "Pedido Mayo 2025")</li>
+    <li>Selecciona la fecha y el estado inicial</li>
+    <li>En <em>Productos en este pedido</em>, haz clic en <strong>+ Agregar producto</strong> y selecciona los productos que vienen en este paquete</li>
+    <li>Por cada producto, ajusta las unidades y el peso por unidad si es diferente al registrado</li>
+    <li>En <em>Costos del pedido</em>:
+      <ul>
+        <li><strong>Tarifa courier:</strong> precio por libra que cobra el courier</li>
+        <li><strong>Courier total:</strong> se calcula automáticamente (tarifa × peso total). Puedes editarlo manualmente</li>
+        <li><strong>Costo de envío:</strong> cargo adicional de Amazon, flete u otro</li>
+        <li><strong>Impuestos / Aduana:</strong> costos de aduana o tasas</li>
+      </ul>
+    </li>
+    <li>Guarda el pedido</li>
+  </ol>
+
+  <h3>Cálculo automático de costos</h3>
+  <p>Al agregar productos y definir la tarifa, la app calcula automáticamente:</p>
+  <ul>
+    <li><strong>Peso total</strong> = suma de (peso por unidad × cantidad) de todos los productos</li>
+    <li><strong>Courier total</strong> = tarifa × peso total</li>
+    <li><strong>Total del pedido</strong> = Amazon + Courier + Costo envío + Impuestos</li>
+  </ul>
+
+  <h3>Marcar como entregado</h3>
+  <p>Cuando recibes el paquete:</p>
+  <ol class="steps">
+    <li>Haz clic en <strong>✅ Marcar entregado</strong></li>
+    <li>La app muestra un preview de cómo se distribuirán los costos entre los productos</li>
+    <li>Revisa los valores calculados: costo adicional por unidad, inversión total y precio de venta de cada producto</li>
+    <li>Si todo está correcto, confirma con <strong>✅ Confirmar y actualizar stock</strong></li>
+  </ol>
+
+  <div class="success-box">
+    <strong>Al confirmar la entrega:</strong> Los costos (courier + envío + impuestos) se distribuyen proporcionalmente por peso entre todos los productos. Se actualizan los campos <em>inversionTotal</em>, <em>precioVenta</em> y <em>stock</em> de cada producto. Los productos pasan a estado <em>disponible</em> en inventario.
+  </div>
+
+  <h4>Fórmula de distribución</h4>
+  <p>Para cada producto en el pedido:</p>
+  <table>
+    <tr><th>Variable</th><th>Cálculo</th></tr>
+    <tr><td>Proporción de peso</td><td>pesoProducto ÷ pesoTotalPedido</td></tr>
+    <tr><td>Costo adicional del producto</td><td>proporciónDePeso × (courier + envío + impuestos)</td></tr>
+    <tr><td>Costo adicional por unidad</td><td>costoAdicionalProducto ÷ unidades</td></tr>
+    <tr><td>Inversión total</td><td>costoAmazon + costoAdicionalPorUnidad</td></tr>
+    <tr><td>Precio de venta</td><td>inversiónTotal × (1 + %ganancia ÷ 100)</td></tr>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ 5. CLIENTES -->
+<div class="section" id="s5">
+  <h2 class="sec-title">5. Clientes</h2>
+
+  <h3>Registrar un cliente</h3>
+  <table class="field-table">
+    <tr><th>Campo</th><th>Tipo</th><th>Uso</th></tr>
+    <tr><td>Nombre</td><td>Texto *</td><td>Identificación principal</td></tr>
+    <tr><td>Cédula / RUC</td><td>Texto</td><td>Aparece en la etiqueta de envío</td></tr>
+    <tr><td>Teléfono</td><td>Texto</td><td>Contacto y etiqueta</td></tr>
+    <tr><td>Correo electrónico</td><td>Email</td><td>Comunicación y etiqueta</td></tr>
+    <tr><td>Dirección de envío</td><td>Texto</td><td>Aparece en la etiqueta de envío</td></tr>
+    <tr><td>Instagram / Red Social</td><td>Texto</td><td>Sin el @</td></tr>
+    <tr><td>Ciudad</td><td>Texto</td><td>Aparece en etiqueta</td></tr>
+    <tr><td>Notas</td><td>Texto</td><td>Observaciones internas</td></tr>
+  </table>
+
+  <h3>Etiqueta de envío imprimible</h3>
+  <p>Para cada cliente puedes generar una etiqueta de envío para colocar en el paquete:</p>
+  <ol class="steps">
+    <li>En la tabla de clientes, haz clic en el botón <strong>🏷️</strong> junto al cliente</li>
+    <li>Se abre una ventana con la etiqueta formateada (10 cm de ancho)</li>
+    <li>Haz clic en <strong>🖨️ Imprimir</strong> para enviar a la impresora o guardar como PDF</li>
+  </ol>
+
+  <p>La etiqueta incluye:</p>
+  <ul>
+    <li><strong>Remitente (DE):</strong> nombre del negocio y logo (si está configurado)</li>
+    <li><strong>Destinatario (PARA):</strong> nombre, CI/RUC, dirección, ciudad, teléfono, email</li>
+  </ul>
+
+  <div class="tip">
+    <strong>También puedes generar la etiqueta</strong> desde el detalle del cliente (botón 👁️) con el botón <em>🏷️ Etiqueta</em> en el modal.
+  </div>
+
+  <h3>Vista de clientes</h3>
+  <p>La tabla muestra nombre, teléfono, red social, total de compras y saldo pendiente. Los clientes con deuda aparecen con el saldo en rojo; los que están al día muestran una insignia verde.</p>
+
+  <h3>Carga masiva desde Excel</h3>
+  <ol class="steps">
+    <li>Descarga la plantilla con <strong>⬇️ Plantilla</strong></li>
+    <li>Llena: <code>nombre</code>, <code>telefono</code>, <code>redSocial</code>, <code>ciudad</code>, <code>notas</code></li>
+    <li>Importa con <strong>⬆️ Importar Excel</strong></li>
+  </ol>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ 6. PEDIDOS CLIENTES -->
+<div class="section" id="s6">
+  <h2 class="sec-title">6. Pedidos Clientes</h2>
+
+  <p>Registra las ventas a tus clientes. El stock se descuenta automáticamente al confirmar cada pedido.</p>
+
+  <h3>Crear un pedido cliente</h3>
+  <ol class="steps">
+    <li>Haz clic en <strong>+ Nuevo Pedido Cliente</strong></li>
+    <li>Selecciona el cliente del listado (se indica si tiene saldo pendiente)</li>
+    <li>Selecciona un producto del desplegable y haz clic en <strong>+ Agregar</strong></li>
+    <li>Ajusta las cantidades con los botones + / − en el carrito. El total se actualiza automáticamente</li>
+    <li>En <em>Pagado en este momento</em>, ingresa el monto recibido (puede ser 0 si es completamente a crédito)</li>
+    <li>Haz clic en <strong>✅ Confirmar Pedido</strong></li>
+  </ol>
+
+  <div class="warning">
+    <strong>Stock:</strong> Solo aparecen en el carrito los productos con stock disponible mayor a 0.
+    Si un producto se agota tras el pedido, su estado cambia automáticamente a <em>agotado</em>.
+  </div>
+
+  <h3>Pagos parciales y abonos</h3>
+  <p>Si el cliente no pagó el total:</p>
+  <ul>
+    <li>El pedido queda con estado <span class="badge b-yellow">parcial</span> o <span class="badge b-red">pendiente</span></li>
+    <li>En la tabla de pedidos, haz clic en <strong>💵 Abonar</strong> para registrar un pago adicional</li>
+    <li>Cuando el saldo llega a 0, el estado cambia a <span class="badge b-green">pagado</span></li>
+  </ul>
+
+  <h3>Estados de un pedido cliente</h3>
+  <table>
+    <tr><th>Estado</th><th>Significado</th></tr>
+    <tr><td><span class="badge b-green">pagado</span></td><td>El cliente pagó el total</td></tr>
+    <tr><td><span class="badge b-yellow">parcial</span></td><td>Hubo un pago inicial pero queda saldo</td></tr>
+    <tr><td><span class="badge b-red">pendiente</span></td><td>No se ha recibido ningún pago</td></tr>
+  </table>
+
+  <h3>Ver detalle de un pedido</h3>
+  <p>Haz clic en el botón <strong>👁️</strong> para ver el desglose completo: productos, cantidades, precios, pagos y saldo actual.</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ 7. CARTERA -->
+<div class="section" id="s7">
+  <h2 class="sec-title">7. Cartera</h2>
+
+  <p>
+    La cartera muestra todos los clientes que tienen saldos pendientes de pago,
+    ordenados de mayor a menor deuda.
+  </p>
+
+  <h3>Resumen de métricas</h3>
+  <ul>
+    <li><strong>Cartera Total:</strong> suma de todos los saldos pendientes</li>
+    <li><strong>Cobrado:</strong> total recibido en todos los pedidos</li>
+    <li><strong>Clientes en mora:</strong> cuántos tienen saldo mayor a 0</li>
+    <li><strong>Clientes al día:</strong> cuántos tienen saldo 0</li>
+  </ul>
+
+  <h3>Registrar un abono desde cartera</h3>
+  <ol class="steps">
+    <li>Haz clic en <strong>💵 Abonar</strong> en la fila del cliente</li>
+    <li>Selecciona a qué pedido aplicar el abono (si el cliente tiene varios con saldo)</li>
+    <li>Ingresa el monto, fecha y forma de pago</li>
+    <li>Confirma con <strong>💾 Registrar Abono</strong></li>
+  </ol>
+
+  <h3>Exportar cartera a Excel</h3>
+  <p>Tres opciones en el encabezado de la pantalla:</p>
+  <table>
+    <tr><th>Botón</th><th>Resultado</th></tr>
+    <tr><td>⬇️ En mora</td><td>Solo clientes con saldo pendiente</td></tr>
+    <tr><td>⬇️ Todo</td><td>Todos los clientes con su saldo</td></tr>
+    <tr><td>⬇️ Por fechas...</td><td>Clientes con deuda de pedidos en un rango de fechas</td></tr>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ 8. CATÁLOGO PDF -->
+<div class="section" id="s8">
+  <h2 class="sec-title">8. Catálogo PDF</h2>
+
+  <p>Genera un catálogo visual con los productos disponibles para compartir con clientes.</p>
+
+  <h3>Opciones del catálogo</h3>
+  <ul>
+    <li><strong>Título:</strong> nombre del catálogo</li>
+    <li><strong>Mostrar precios:</strong> activa o desactiva los precios de venta</li>
+    <li><strong>Filtro por categoría:</strong> genera el catálogo de una categoría específica</li>
+  </ul>
+
+  <p>El catálogo incluye: logo del negocio, nombre, descripción, foto del producto, precio (opcional) y categoría. Los productos se organizan en una grilla de 3 columnas por página. Cada página lleva un pie con el número de página y el nombre del negocio.</p>
+
+  <div class="tip">
+    <strong>Para mejores resultados:</strong> asegúrate de que los productos tengan foto y descripción antes de generar el catálogo.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ 9. REPORTES -->
+<div class="section" id="s9">
+  <h2 class="sec-title">9. Reportes</h2>
+
+  <p>Panel con estadísticas del negocio y 4 gráficos interactivos.</p>
+
+  <h3>Métricas principales</h3>
+  <table>
+    <tr><th>Métrica</th><th>Descripción</th></tr>
+    <tr><td>Total Ventas</td><td>Suma de todos los pedidos de clientes</td></tr>
+    <tr><td>Ganancia Bruta</td><td>Diferencia entre precio de venta e inversión total, por todos los productos vendidos</td></tr>
+    <tr><td>Inversión Importaciones</td><td>Total invertido en pedidos Amazon (Amazon + courier + envío + impuestos)</td></tr>
+    <tr><td>Cartera Pendiente</td><td>Total por cobrar de todos los clientes</td></tr>
+  </table>
+
+  <h3>Gráficos disponibles</h3>
+  <ul>
+    <li><strong>Ventas por mes:</strong> gráfico de barras con los últimos 12 meses</li>
+    <li><strong>Cobrado / Cartera / Inversión:</strong> gráfico de dona comparando el dinero cobrado, pendiente e invertido</li>
+    <li><strong>Productos más vendidos:</strong> barras horizontales con las 8 referencias más vendidas por unidades</li>
+    <li><strong>Clientes con más compras:</strong> barras horizontales con los 8 clientes de mayor volumen</li>
+  </ul>
+
+  <p>Al final de la pantalla hay una tabla de <strong>Estado del inventario por categoría</strong> con el número de productos, disponibles e inversión en stock.</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ 10. RESPALDO -->
+<div class="section" id="s10">
+  <h2 class="sec-title">10. Respaldo de datos</h2>
+
+  <h3>Rutina recomendada</h3>
+  <table>
+    <tr><th>Frecuencia</th><th>Acción</th><th>Razón</th></tr>
+    <tr><td>Automático (cada cambio)</td><td>Sync GitHub <span style="font-size:9pt;color:#64748b">(si está configurado)</span></td><td>Sin intervención, datos siempre respaldados en la nube</td></tr>
+    <tr><td>Diario</td><td>Backup Excel (.xlsx)</td><td>Rápido, abrible en Excel, liviano</td></tr>
+    <tr><td>Semanal o antes de cambios</td><td>Backup JSON</td><td>Completo, incluye fotos, restauración fiel</td></tr>
+    <tr><td>Al cambiar de equipo</td><td>Configurar GitHub en el nuevo dispositivo</td><td>Descarga automática de toda la data al abrir la app</td></tr>
+  </table>
+
+  <h3>Exportar backup</h3>
+  <ol class="steps">
+    <li>Ve a <strong>Configuración → Respaldo de datos</strong></li>
+    <li>Haz clic en <strong>⬇️ Exportar</strong> (JSON o Excel)</li>
+    <li>El archivo se descarga automáticamente</li>
+    <li>Guárdalo en una ubicación segura (Google Drive, USB, etc.)</li>
+  </ol>
+
+  <h3>Restaurar desde backup</h3>
+  <ol class="steps">
+    <li>Ve a <strong>Configuración → Respaldo de datos</strong></li>
+    <li>Haz clic en <strong>⬆️ Restaurar</strong> (del tipo de backup correspondiente)</li>
+    <li>Selecciona el archivo guardado</li>
+    <li>Confirma — <strong>los datos actuales serán reemplazados</strong></li>
+  </ol>
+
+  <div class="warning">
+    <strong>Al restaurar desde Excel</strong> las fotos de productos no se recuperan (no se incluyen en el Excel). Para recuperar fotos, usa siempre el backup JSON.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ 11. FLUJO COMPLETO -->
+<div class="section" id="s11">
+  <h2 class="sec-title">11. Flujo completo del negocio</h2>
+
+  <p>Este es el ciclo de vida típico de un artículo desde que lo compras hasta que cobras al cliente:</p>
+
+  <h3>Paso 1 — Registro del producto</h3>
+  <p>En <strong>Inventario</strong>: crea el producto con costo Amazon, peso, unidades y código de orden. El tracking queda en <em>pedido</em>.</p>
+
+  <h3>Paso 2 — Seguimiento individual</h3>
+  <p>Conforme avanza el envío, actualiza el tracking de cada producto: <em>pedido → enviado → en aduana → en bodega</em>.</p>
+
+  <h3>Paso 3 — Pedido Amazon</h3>
+  <p>En <strong>Pedidos Amazon</strong>: crea el pedido, agrega los productos del paquete, define tarifa courier, costo de envío e impuestos. La app calcula el total automáticamente.</p>
+
+  <h3>Paso 4 — Recepción del paquete</h3>
+  <p>Cuando llega el paquete, marca el pedido como <em>entregado</em>. La app distribuye los costos proporcionalmente y actualiza el stock e inversión de cada producto. Los productos pasan a <em>disponible</em>.</p>
+
+  <h3>Paso 5 — Venta al cliente</h3>
+  <p>En <strong>Pedidos Clientes</strong>: selecciona el cliente, arma el carrito con los productos disponibles y confirma. El stock se descuenta.</p>
+
+  <h3>Paso 6 — Cobro</h3>
+  <p>Si no pagó el total, registra abonos en <strong>Cartera</strong> hasta saldar la deuda.</p>
+
+  <div class="flow" style="flex-direction:column;gap:4px;align-items:flex-start">
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="node" style="background:#eff6ff">1. Crear producto</div>
+      <div class="arrow">→</div>
+      <div class="node" style="background:#eff6ff">2. Tracking individual</div>
+      <div class="arrow">→</div>
+      <div class="node" style="background:#fff7ed">3. Pedido Amazon</div>
+    </div>
+    <div style="padding-left:60px;color:var(--sub);font-size:20px">↓</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="node" style="background:#f0fdf4">6. Cobro / Cartera</div>
+      <div class="arrow">←</div>
+      <div class="node" style="background:#f0fdf4">5. Pedido Cliente</div>
+      <div class="arrow">←</div>
+      <div class="node" style="background:#f0fdf4">4. Recepción → Inventario</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ 12. FAQ -->
+<div class="section" id="s12">
+  <h2 class="sec-title">12. Preguntas frecuentes</h2>
+
+  <h3>¿Puedo usar la app sin internet?</h3>
+  <p>Sí. Una vez abierta en el navegador funciona completamente offline. Los CDNs (Chart.js, jsPDF, SheetJS) se cargan al abrir la app; si no hay internet, algunas funciones gráficas podrían no cargar en la primera apertura.</p>
+
+  <h3>¿Qué pasa si cierro el navegador?</h3>
+  <p>Los datos se guardan automáticamente en localStorage con cada cambio. No se pierde nada. Si tienes carpeta vinculada, también se escriben a disco.</p>
+
+  <h3>¿Puedo usar la app en varios equipos?</h3>
+  <p>Sí, de dos formas:</p>
+  <ul>
+    <li><strong>Con GitHub (recomendado):</strong> configura el mismo repositorio en cada dispositivo. Al abrir la app, descarga automáticamente los datos más recientes. Los cambios de un dispositivo se suben automáticamente y el otro los verá al abrir la app.</li>
+    <li><strong>Con backup JSON:</strong> exporta el backup en un equipo, cópialo al otro y restáuralo desde Configuración.</li>
+  </ul>
+
+  <h3>¿Por qué no funciona la carpeta de datos en Firefox?</h3>
+  <p>La funcionalidad de carpeta de datos usa el File System Access API, que solo está disponible en Chrome y Edge (versión 86 o superior). En Firefox, los datos se guardan solo en localStorage.</p>
+
+  <h3>¿Qué hago si un producto se vendió más de lo que estaba en stock?</h3>
+  <p>La app valida el stock antes de permitir agregar al carrito. No puedes vender más unidades de las disponibles.</p>
+
+  <h3>¿Puedo editar o eliminar un pedido cliente ya confirmado?</h3>
+  <p>Actualmente no es posible editar un pedido cliente una vez creado. Puedes registrar abonos o consultar el detalle. La posibilidad de editar/cancelar pedidos está planificada como mejora futura.</p>
+
+  <h3>¿Las fotos ocupan mucho espacio?</h3>
+  <p>La app comprime automáticamente las fotos al subirlas (máximo 500px, calidad JPEG 0.78). Aun así, localStorage tiene un límite de ~5 MB. En la pantalla de Configuración puedes ver cuánto espacio estás usando. Si llegas al límite, usa la carpeta de datos en disco.</p>
+
+  <h3>¿Puedo tener el mismo producto en varios pedidos Amazon?</h3>
+  <p>Sí. El mismo producto puede estar en distintos pedidos Amazon. Cada vez que un pedido se marque como entregado, el stock de ese producto aumenta y los costos se recalculan con los datos de ese pedido específico.</p>
+
+  <h3>¿El catálogo PDF incluye todos los productos?</h3>
+  <p>Solo los productos con estado <em>disponible</em> (en stock). Puedes filtrar por categoría para generar catálogos específicos.</p>
+
+  <h3>Si configuro GitHub, ¿mis datos son privados?</h3>
+  <p>Sí, siempre que uses un <strong>repositorio privado</strong>. Solo tú (y quienes tengan acceso al repo) pueden ver los archivos. El Personal Access Token se guarda únicamente en el localStorage de tu navegador y en la carpeta de datos local — nunca se sube a ningún servidor externo.</p>
+
+  <h3>¿Qué pasa si hago cambios sin internet?</h3>
+  <p>La app funciona normalmente offline. Los datos se guardan en localStorage y en la carpeta local (si está vinculada). Cuando recuperes la conexión, el botón <strong>Sincronizar</strong> enviará todos los cambios a GitHub. Puedes también usar el botón <em>⬆️ Subir datos a GitHub</em> en Configuración.</p>
+
+  <h3>¿Las fotos se sincronizan con GitHub?</h3>
+  <p>No. Las imágenes de productos son demasiado grandes para la API de GitHub (podrían ser varios MB por foto). Solo se sincronizan los datos textuales. Las fotos quedan guardadas localmente (en localStorage o en la carpeta). Si cambias de dispositivo, deberás volver a subir las fotos desde ese nuevo equipo.</p>
+
+  <hr style="border:none;border-top:2px solid var(--border);margin:40px 0">
+
+  <div style="text-align:center;color:var(--sub);font-size:10pt;padding-bottom:20px">
+    <p>ImportApp — Manual de Usuario v1.1</p>
+    <p>Aplicación portátil desarrollada en HTML / CSS / JavaScript</p>
+    <p style="margin-top:4px">Actualizado 2026-04-16 · Incluye sincronización GitHub multi-dispositivo</p>
+  </div>
+</div>
+
+</div><!-- /wrap -->
+</body>
+</html>

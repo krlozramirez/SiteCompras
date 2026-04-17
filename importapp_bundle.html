@@ -671,6 +671,13 @@ const Storage = {
         }
       } catch { /* archivo no existe aún, se creará al primer _set */ }
     }
+    // Cargar configuración de GitHub desde archivo (permite compartir entre dispositivos)
+    try {
+      const fh   = await this._dirHandle.getFileHandle('imp_github_cfg.json');
+      const file = await fh.getFile();
+      const data = JSON.parse(await file.text());
+      if (data && data.owner) localStorage.setItem('imp_github_cfg', JSON.stringify(data));
+    } catch {}
   },
 
   async _writeAllToFiles() {
@@ -682,6 +689,11 @@ const Storage = {
       if (key === this.K.PRODUCTOS) await this._writeProductosFile(val);
       else await this._writeFile(key, val);
     }
+    // Guardar configuración de GitHub en archivo (para no reingresarla en otro dispositivo)
+    try {
+      const ghData = JSON.parse(localStorage.getItem('imp_github_cfg'));
+      if (ghData && ghData.owner) await this._writeFile('imp_github_cfg', ghData);
+    } catch {}
   },
 
   // ── Image file operations ──────────────────────────────────────────────────
@@ -768,7 +780,8 @@ const Storage = {
   _set(key, val) {
     this._cache[key] = val;
     localStorage.setItem(key, JSON.stringify(val));
-    if (this._dirHandle) this._writeFile(key, val); // async, fire-and-forget
+    if (this._dirHandle) this._writeFile(key, val);
+    if (typeof GitHub !== 'undefined') GitHub.autoSync();
   },
 
   uuid()  { return Date.now().toString(36) + Math.random().toString(36).substr(2, 9); },
@@ -786,6 +799,7 @@ const Storage = {
     this._cache[this.K.CONFIG] = c;
     localStorage.setItem(this.K.CONFIG, JSON.stringify(c));
     if (this._dirHandle) this._writeFile(this.K.CONFIG, c);
+    if (typeof GitHub !== 'undefined') GitHub.autoSync();
   },
 
   // PRODUCTOS
@@ -800,6 +814,7 @@ const Storage = {
     this._cache[this.K.PRODUCTOS] = list;
     localStorage.setItem(this.K.PRODUCTOS, JSON.stringify(list));
     if (this._dirHandle) this._writeProductosFile(list);
+    if (typeof GitHub !== 'undefined') GitHub.autoSync();
     return p;
   },
   deleteProducto(id){
@@ -810,6 +825,7 @@ const Storage = {
       this._writeProductosFile(list);
       this._deleteImageFile(id);
     }
+    if (typeof GitHub !== 'undefined') GitHub.autoSync();
   },
 
   // IMPORTACIONES
@@ -1083,6 +1099,210 @@ const Storage = {
     a.download = `importapp_backup_${this.today()}.json`;
     a.click();
     App.toast('Backup exportado', 'success');
+  }
+};
+
+
+const GitHub = {
+  _KEY:       'imp_github_cfg',
+  _syncTimer: null,
+  _syncing:   false,
+  _suppress:  false,   // true durante pull para evitar loop pull→_set→autoSync
+
+  getConfig() {
+    try { return JSON.parse(localStorage.getItem(this._KEY)) || {}; }
+    catch { return {}; }
+  },
+
+  saveConfig(c) { localStorage.setItem(this._KEY, JSON.stringify(c)); },
+
+  isConfigured() {
+    const c = this.getConfig();
+    return !!(c.token && c.owner && c.repo && c.branch);
+  },
+
+  _headers(token) {
+    return {
+      'Authorization': `Bearer ${token || this.getConfig().token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    };
+  },
+
+  // JSON → base64 con soporte UTF-8 (acentos, ñ, etc.)
+  _encode(obj) {
+    const bytes = new TextEncoder().encode(JSON.stringify(obj, null, 2));
+    let bin = '';
+    bytes.forEach(b => bin += String.fromCharCode(b));
+    return btoa(bin);
+  },
+
+  // base64 → JSON con soporte UTF-8
+  _decode(b64) {
+    const bin = atob(b64.replace(/\n/g, ''));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return JSON.parse(new TextDecoder().decode(bytes));
+  },
+
+  async _getSha(path) {
+    const { owner, repo, branch, token } = this.getConfig();
+    const r = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
+      { headers: this._headers(token) }
+    );
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    return d.sha;
+  },
+
+  async getFile(path) {
+    const { owner, repo, branch, token } = this.getConfig();
+    const r = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
+      { headers: this._headers(token) }
+    );
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    return { content: this._decode(d.content), sha: d.sha };
+  },
+
+  async putFile(path, data, sha) {
+    const { owner, repo, branch, token } = this.getConfig();
+    const body = {
+      message: `importapp: sync ${new Date().toISOString().slice(0, 10)}`,
+      content: this._encode(data),
+      branch
+    };
+    if (sha) body.sha = sha;
+    const r = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+      { method: 'PUT', headers: this._headers(token), body: JSON.stringify(body) }
+    );
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      throw new Error(`HTTP ${r.status}: ${e.message || 'Error desconocido'}`);
+    }
+  },
+
+  // Verifica conexión con credenciales dadas directamente (sin requerir config guardada)
+  async testConnection(owner, repo, token) {
+    const r = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}`,
+      { headers: this._headers(token) }
+    );
+    if (r.status === 401) throw new Error('Token inválido o sin permisos');
+    if (r.status === 404) throw new Error('Repositorio no encontrado (¿es privado?)');
+    if (!r.ok) throw new Error(`Error HTTP ${r.status}`);
+    const d = await r.json();
+    return { name: d.full_name, private: d.private };
+  },
+
+  // ── Auto-sync: se llama tras cada modificación, debounce de 2.5s ──────────
+  autoSync() {
+    if (!this.isConfigured() || this._suppress) return;
+    clearTimeout(this._syncTimer);
+    this._syncTimer = setTimeout(() => this._doAutoSync(), 2500);
+  },
+
+  async _doAutoSync() {
+    if (this._syncing) {
+      // Ya hay un sync en curso, reprogramar
+      this._syncTimer = setTimeout(() => this._doAutoSync(), 2000);
+      return;
+    }
+    this._syncing = true;
+    const btn  = document.getElementById('sync-btn');
+    const icon = btn?.querySelector('.sync-icon');
+    const lbl  = btn?.querySelector('.sync-label');
+    if (icon) icon.textContent = '⏳';
+    if (lbl)  lbl.textContent  = 'Guardando...';
+    try {
+      await this.syncAll();
+      if (icon) icon.textContent = '✅';
+      if (lbl)  lbl.textContent  = 'Guardado';
+      setTimeout(() => { if (typeof App !== 'undefined') App.updateSyncBtn(); }, 1500);
+    } catch(e) {
+      console.warn('[GitHub] Auto-sync error:', e.message);
+      if (icon) icon.textContent = '⚠️';
+      if (lbl)  lbl.textContent  = 'Error sync';
+      setTimeout(() => { if (typeof App !== 'undefined') App.updateSyncBtn(); }, 3000);
+    } finally {
+      this._syncing = false;
+    }
+  },
+
+  // ── Sube todos los datos a GitHub (imágenes excluidas por tamaño) ──────────
+  async syncAll() {
+    const cfg = Storage.getConfig();
+    const files = {
+      'imp_productos.json':     Storage.getProductos().map(p => ({ ...p, foto: p.foto ? '[imagen]' : null })),
+      'imp_importaciones.json': Storage.getImportaciones(),
+      'imp_clientes.json':      Storage.getClientes(),
+      'imp_ventas.json':        Storage.getVentas(),
+      'imp_abonos.json':        Storage.getAbonos(),
+      'imp_config.json':        { ...cfg, logo: cfg.logo ? '[imagen]' : null }
+    };
+
+    const errors = [];
+    for (const [path, data] of Object.entries(files)) {
+      try {
+        const sha = await this._getSha(path);
+        await this.putFile(path, data, sha);
+      } catch(e) {
+        errors.push(`${path}: ${e.message}`);
+      }
+    }
+
+    if (errors.length) throw new Error(errors.join('\n'));
+  },
+
+  // ── Baja todos los datos de GitHub (imágenes se preservan localmente) ──────
+  async pullAll() {
+    this._suppress = true;  // evita que los _set() disparen auto-sync
+    try {
+      // Productos: restaurar imágenes desde datos locales por ID
+      const prodResult = await this.getFile('imp_productos.json');
+      if (prodResult) {
+        const localProds = Storage.getProductos();
+        const merged = prodResult.content.map(p => {
+          if (p.foto === '[imagen]') {
+            const local = localProds.find(lp => lp.id === p.id);
+            return { ...p, foto: local?.foto || null };
+          }
+          return p;
+        });
+        Storage._cache[Storage.K.PRODUCTOS] = merged;
+        localStorage.setItem(Storage.K.PRODUCTOS, JSON.stringify(merged));
+        if (Storage._dirHandle) Storage._writeProductosFile(merged);
+      }
+
+      // Tablas sin imágenes
+      const tables = [
+        ['imp_importaciones.json', Storage.K.IMPORTACIONES],
+        ['imp_clientes.json',      Storage.K.CLIENTES],
+        ['imp_ventas.json',        Storage.K.VENTAS],
+        ['imp_abonos.json',        Storage.K.ABONOS],
+      ];
+      for (const [file, key] of tables) {
+        const result = await this.getFile(file);
+        if (result) Storage._set(key, result.content);
+      }
+
+      // Config: preservar logo local
+      const cfgResult = await this.getFile('imp_config.json');
+      if (cfgResult) {
+        const localCfg = Storage.getConfig();
+        const remote = cfgResult.content;
+        if (remote.logo === '[imagen]') remote.logo = localCfg.logo || null;
+        Storage.saveConfig(remote);
+      }
+    } finally {
+      this._suppress = false;
+    }
   }
 };
 
@@ -3456,7 +3676,8 @@ const Reportes = {
 
 const Config = {
   render() {
-    const cfg = Storage.getConfig();
+    const cfg    = Storage.getConfig();
+    const ghCfg  = GitHub.getConfig();
 
     document.getElementById('view-container').innerHTML = `
       <div class="page-header">
@@ -3560,6 +3781,72 @@ const Config = {
           aunque limpies el navegador. Requiere <strong>Chrome o Edge</strong>.
         </p>
         <button class="btn btn-primary" onclick="Config._seleccionarCarpeta()">${Storage.getFolderName() ? '📁 Cambiar carpeta' : '📁 Seleccionar carpeta de datos'}</button>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div class="card-title">🐙 GitHub — Sincronización en la nube</div></div>
+
+        ${ghCfg.owner ? `
+          <div style="display:flex;align-items:center;gap:10px;background:#d1fae5;border:1px solid #6ee7b7;border-radius:8px;padding:12px;margin-bottom:14px">
+            <span style="font-size:20px">✅</span>
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:13px">Conectado: <code style="background:#fff;padding:2px 6px;border-radius:4px">${ghCfg.owner}/${ghCfg.repo}</code> · branch <code style="background:#fff;padding:2px 6px;border-radius:4px">${ghCfg.branch}</code></div>
+              <div style="font-size:11px;color:#065f46;margin-top:2px">Al sincronizar, los datos se guardan en GitHub. Las imágenes quedan solo localmente.</div>
+            </div>
+          </div>` : `
+          <div style="display:flex;align-items:center;gap:10px;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px;margin-bottom:14px">
+            <span style="font-size:20px">☁️</span>
+            <div>
+              <div style="font-weight:700;font-size:13px">No configurado</div>
+              <div style="font-size:11px;color:#92400e;margin-top:2px">Configura un repositorio privado en GitHub para acceder a tus datos desde cualquier máquina.</div>
+            </div>
+          </div>`}
+
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;line-height:1.6">
+          Los archivos JSON se guardan directamente en un repositorio de GitHub usando la API.
+          Necesitas: (1) un <strong>repositorio privado</strong> creado en github.com y
+          (2) un <strong>Personal Access Token</strong> con permiso <code>repo</code>
+          (GitHub → Settings → Developer settings → Personal access tokens → Tokens classic).
+          <br><strong>Nota:</strong> las imágenes de productos <em>no se sincronizan</em> (demasiado grandes); quedan guardadas localmente.
+        </p>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Usuario de GitHub</label>
+            <input class="form-control" id="cfg-gh-owner" placeholder="tu-usuario" value="${ghCfg.owner || ''}">
+          </div>
+          <div class="form-group">
+            <label>Nombre del repositorio</label>
+            <input class="form-control" id="cfg-gh-repo" placeholder="importapp-datos" value="${ghCfg.repo || ''}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Branch</label>
+            <input class="form-control" id="cfg-gh-branch" placeholder="main" value="${ghCfg.branch || 'main'}">
+          </div>
+          <div class="form-group">
+            <label>Personal Access Token <span style="font-size:11px;color:var(--text-secondary)">(guardado solo en este navegador)</span></label>
+            <input class="form-control" id="cfg-gh-token" type="password" placeholder="ghp_xxxxxxxxxxxx" value="${ghCfg.token || ''}">
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${ghCfg.token ? '14px' : '0'}">
+          <button class="btn btn-ghost btn-sm" onclick="Config._testGitHub()">🔍 Probar conexión</button>
+          <button class="btn btn-primary btn-sm" onclick="Config._saveGitHub()">💾 Guardar configuración</button>
+          ${ghCfg.token ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="Config._desconectarGitHub()">✕ Desconectar</button>` : ''}
+        </div>
+
+        ${GitHub.isConfigured() ? `
+          <div style="border-top:1px solid var(--border);padding-top:14px">
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">
+              También puedes subir o bajar datos manualmente desde aquí:
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-outline btn-sm" onclick="Config._pushGitHub()">⬆️ Subir datos a GitHub</button>
+              <button class="btn btn-ghost btn-sm" onclick="Config._pullGitHub()">⬇️ Bajar datos de GitHub</button>
+            </div>
+          </div>` : ''}
       </div>
 
       <div class="card" style="margin-bottom:16px">
@@ -3751,6 +4038,73 @@ const Config = {
       App.toast('Datos eliminados', 'success');
       App.navigate('inventario');
     });
+  },
+
+  // ── GitHub ──────────────────────────────────────────────────────────────────
+  async _testGitHub() {
+    const owner = document.getElementById('cfg-gh-owner')?.value.trim();
+    const repo  = document.getElementById('cfg-gh-repo')?.value.trim();
+    const token = document.getElementById('cfg-gh-token')?.value.trim();
+    if (!owner || !repo || !token) {
+      App.toast('Completa usuario, repositorio y token antes de probar', 'warning');
+      return;
+    }
+    try {
+      const info = await GitHub.testConnection(owner, repo, token);
+      App.toast(`✅ Conectado a ${info.name} (${info.private ? 'privado' : 'público'})`, 'success');
+    } catch(e) {
+      App.toast(`Error: ${e.message}`, 'error');
+    }
+  },
+
+  _saveGitHub() {
+    const owner  = document.getElementById('cfg-gh-owner')?.value.trim();
+    const repo   = document.getElementById('cfg-gh-repo')?.value.trim();
+    const branch = document.getElementById('cfg-gh-branch')?.value.trim() || 'main';
+    const token  = document.getElementById('cfg-gh-token')?.value.trim();
+    if (!owner || !repo || !token) {
+      App.toast('Completa usuario, repositorio y token', 'warning');
+      return;
+    }
+    GitHub.saveConfig({ owner, repo, branch, token });
+    App.toast('Configuración GitHub guardada', 'success');
+    App.updateSyncBtn();
+    this.render();
+  },
+
+  _desconectarGitHub() {
+    App.confirm('¿Desconectar GitHub? Los datos en el repositorio no se borran.', () => {
+      GitHub.saveConfig({});
+      App.toast('GitHub desconectado', 'info');
+      App.updateSyncBtn();
+      this.render();
+    });
+  },
+
+  async _pushGitHub() {
+    App.confirm('¿Subir todos los datos a GitHub? Sobreescribirá los archivos del repositorio.', async () => {
+      App.toast('Subiendo datos a GitHub...', 'info');
+      try {
+        await GitHub.syncAll();
+        App.toast('Datos subidos a GitHub correctamente ✅', 'success');
+      } catch(e) {
+        App.toast('Error al subir: ' + e.message, 'error');
+      }
+    });
+  },
+
+  async _pullGitHub() {
+    App.confirm('¿Bajar datos de GitHub? Los datos locales serán reemplazados (las imágenes se conservan).', async () => {
+      App.toast('Descargando datos de GitHub...', 'info');
+      try {
+        await GitHub.pullAll();
+        App.toast('Datos descargados de GitHub correctamente ✅', 'success');
+        App.reloadConfig();
+        this.render();
+      } catch(e) {
+        App.toast('Error al bajar: ' + e.message, 'error');
+      }
+    });
   }
 };
 
@@ -3776,11 +4130,22 @@ const App = {
       });
     });
 
-    // Mostrar splash mientras carga desde archivos (si hay carpeta configurada)
-    document.getElementById('view-container').innerHTML =
-      '<div style="padding:60px;text-align:center;color:var(--text-secondary);font-size:14px">Cargando datos...</div>';
+    const splash = msg =>
+      document.getElementById('view-container').innerHTML =
+        `<div style="padding:60px;text-align:center;color:var(--text-secondary);font-size:14px">${msg}</div>`;
 
+    splash('Cargando datos...');
     await Storage.initStorage();
+
+    if (GitHub.isConfigured()) {
+      splash('⬇️ Sincronizando con GitHub...');
+      try {
+        await GitHub.pullAll();
+      } catch(e) {
+        this.toast('Sin conexión a GitHub. Usando datos locales.', 'warning');
+      }
+    }
+
     this._applyConfig();
     this.updateSyncBtn();
 
@@ -3824,8 +4189,11 @@ const App = {
     const lbl  = btn?.querySelector('.sync-label');
     if (!btn) return;
 
-    if (!Storage.getFolderName()) {
-      App.toast('Selecciona una carpeta en Configuración primero', 'warning');
+    const hasFolder = !!Storage.getFolderName();
+    const hasGitHub = GitHub.isConfigured();
+
+    if (!hasFolder && !hasGitHub) {
+      App.toast('Configura una carpeta o GitHub en Configuración', 'warning');
       App.navigate('config');
       return;
     }
@@ -3834,19 +4202,35 @@ const App = {
     if (icon) icon.textContent = '⏳';
     if (lbl)  lbl.textContent  = 'Guardando...';
 
-    const result = await Storage.syncAll();
+    const destinos = [];
+    let hayError = false;
 
-    if (result.ok) {
+    if (hasFolder) {
+      const result = await Storage.syncAll();
+      if (result.ok) destinos.push('carpeta');
+      else { hayError = true; App.toast('Error al guardar en carpeta local', 'error'); }
+    }
+
+    if (hasGitHub) {
+      try {
+        await GitHub.syncAll();
+        destinos.push('GitHub');
+      } catch(e) {
+        hayError = true;
+        App.toast('Error GitHub: ' + e.message, 'error');
+      }
+    }
+
+    if (destinos.length) {
       btn.className = 'sync-btn sync-ok';
       if (icon) icon.textContent = '✅';
       if (lbl)  lbl.textContent  = 'Guardado';
-      App.toast('Datos sincronizados en carpeta', 'success');
+      App.toast('Guardado en: ' + destinos.join(' y '), 'success');
       setTimeout(() => { btn.disabled = false; App.updateSyncBtn(); }, 2000);
     } else {
       if (icon) icon.textContent = '⚠️';
       if (lbl)  lbl.textContent  = 'Error';
       btn.disabled = false;
-      App.toast('No se pudo sincronizar. Verifica la carpeta.', 'error');
       setTimeout(() => App.updateSyncBtn(), 3000);
     }
   },
@@ -3857,19 +4241,25 @@ const App = {
     if (!btn) return;
 
     const folder = Storage.getFolderName();
+    const ghCfg  = GitHub.isConfigured() ? GitHub.getConfig() : null;
     btn.disabled = false;
     const icon = btn.querySelector('.sync-icon');
     const lbl  = btn.querySelector('.sync-label');
 
-    if (folder) {
+    if (folder || ghCfg) {
       btn.className = 'sync-btn sync-active';
       if (icon) icon.textContent = '💾';
       if (lbl)  lbl.textContent  = 'Sincronizar';
-      if (status) status.textContent = folder;
+      if (status) {
+        const parts = [];
+        if (folder) parts.push(`📁 ${folder}`);
+        if (ghCfg)  parts.push(`🐙 ${ghCfg.owner}/${ghCfg.repo}`);
+        status.textContent = parts.join(' · ');
+      }
     } else {
       btn.className = 'sync-btn sync-inactive';
       if (icon) icon.textContent = '💾';
-      if (lbl)  lbl.textContent  = 'Sin carpeta';
+      if (lbl)  lbl.textContent  = 'Sin sincronizar';
       if (status) status.textContent = 'Configurar en ⚙️';
     }
   },

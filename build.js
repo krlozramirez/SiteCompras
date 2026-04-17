@@ -11,6 +11,7 @@ const read = f => fs.readFileSync(path.join(root, f), 'utf8');
 const css = read('css/styles.css');
 const scripts = [
   'js/storage.js',
+  'js/github.js',
   'js/inventario.js',
   'js/importaciones.js',
   'js/clientes.js',
