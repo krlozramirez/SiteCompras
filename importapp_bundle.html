@@ -549,7 +549,8 @@ const Storage = {
     CLIENTES:     'imp_clientes',
     VENTAS:       'imp_ventas',
     ABONOS:       'imp_abonos',
-    CONFIG:       'imp_config'
+    CONFIG:       'imp_config',
+    DELETIONS:    'imp_deletions'
   },
 
   _cache:     {},   // espejo en memoria de los datos activos
@@ -784,6 +785,19 @@ const Storage = {
     if (typeof GitHub !== 'undefined') GitHub.autoSync();
   },
 
+  // ── Registro de eliminaciones (tombstones para sync multi-dispositivo) ──────
+  getDeletions() {
+    try { return JSON.parse(localStorage.getItem(this.K.DELETIONS)) || []; }
+    catch { return []; }
+  },
+  _addDeletion(id, key) {
+    const list = this.getDeletions();
+    if (!list.find(d => d.id === id)) {
+      list.push({ id, key, ts: Date.now() });
+      localStorage.setItem(this.K.DELETIONS, JSON.stringify(list));
+    }
+  },
+
   uuid()  { return Date.now().toString(36) + Math.random().toString(36).substr(2, 9); },
   today() { return new Date().toISOString().split('T')[0]; },
 
@@ -818,6 +832,7 @@ const Storage = {
     return p;
   },
   deleteProducto(id){
+    this._addDeletion(id, this.K.PRODUCTOS);
     const list = this.getProductos().filter(p => p.id !== id);
     this._cache[this.K.PRODUCTOS] = list;
     localStorage.setItem(this.K.PRODUCTOS, JSON.stringify(list));
@@ -839,7 +854,7 @@ const Storage = {
     this._set(this.K.IMPORTACIONES, list);
     return p;
   },
-  deleteImportacion(id){ this._set(this.K.IMPORTACIONES, this.getImportaciones().filter(p => p.id !== id)); },
+  deleteImportacion(id){ this._addDeletion(id, this.K.IMPORTACIONES); this._set(this.K.IMPORTACIONES, this.getImportaciones().filter(p => p.id !== id)); },
 
   // CLIENTES
   getClientes()    { return this._get(this.K.CLIENTES); },
@@ -852,7 +867,7 @@ const Storage = {
     this._set(this.K.CLIENTES, list);
     return c;
   },
-  deleteCliente(id){ this._set(this.K.CLIENTES, this.getClientes().filter(c => c.id !== id)); },
+  deleteCliente(id){ this._addDeletion(id, this.K.CLIENTES); this._set(this.K.CLIENTES, this.getClientes().filter(c => c.id !== id)); },
 
   // VENTAS
   getVentas()   { return this._get(this.K.VENTAS); },
@@ -877,7 +892,7 @@ const Storage = {
     this._set(this.K.ABONOS, list);
     return a;
   },
-  deleteAbono(id){ this._set(this.K.ABONOS, this.getAbonos().filter(a => a.id !== id)); },
+  deleteAbono(id){ this._addDeletion(id, this.K.ABONOS); this._set(this.K.ABONOS, this.getAbonos().filter(a => a.id !== id)); },
 
   // ── Helpers de importación ─────────────────────────────────────────────────
   recibirImportacion(importacionId) {
@@ -1292,19 +1307,41 @@ const GitHub = {
     }
   },
 
-  // Une dos arrays por ID: local gana en conflicto, items solo en remoto se conservan
-  _mergeArrays(local, remote) {
-    const localIds = new Set(local.map(x => x.id));
-    const soloRemoto = remote.filter(x => !localIds.has(x.id));
-    return [...local, ...soloRemoto];
+  // Une dos arrays por ID respetando eliminaciones: local gana en conflicto,
+  // items solo en remoto se conservan SALVO que estén en la lista de borrados
+  _mergeArrays(local, remote, deletions = []) {
+    const deletedIds = new Set(deletions.map(d => d.id));
+    const cleanLocal = local.filter(x => !deletedIds.has(x.id));
+    const localIds   = new Set(cleanLocal.map(x => x.id));
+    const soloRemoto = remote.filter(x => !localIds.has(x.id) && !deletedIds.has(x.id));
+    return [...cleanLocal, ...soloRemoto];
   },
 
-  // ── Sube todos los datos a GitHub con merge para no pisar cambios de otro dispositivo ──
+  // Une dos listas de tombstones eliminando duplicados por ID
+  _mergeDeletions(local, remote) {
+    const seen = new Set();
+    return [...local, ...remote].filter(d => {
+      if (seen.has(d.id)) return false;
+      seen.add(d.id);
+      return true;
+    });
+  },
+
+  // ── Sube todos los datos a GitHub con merge y respetando eliminaciones ───────
   async syncAll() {
     const cfg    = Storage.getConfig();
     const errors = [];
 
-    // Tablas de arrays: merge local + remoto antes de subir
+    // Merge y sincronizar lista de eliminaciones primero
+    let mergedDels = Storage.getDeletions();
+    try {
+      const remoteDels = await this.getFile('imp_deletions.json');
+      if (remoteDels) mergedDels = this._mergeDeletions(mergedDels, remoteDels.content);
+      await this.putFile('imp_deletions.json', mergedDels, remoteDels?.sha);
+      localStorage.setItem(Storage.K.DELETIONS, JSON.stringify(mergedDels));
+    } catch(e) { errors.push(`imp_deletions.json: ${e.message}`); }
+
+    // Tablas de arrays: merge local + remoto respetando eliminaciones
     const tablas = [
       { file: 'imp_importaciones.json', key: Storage.K.IMPORTACIONES, getData: () => Storage.getImportaciones() },
       { file: 'imp_clientes.json',      key: Storage.K.CLIENTES,      getData: () => Storage.getClientes() },
@@ -1314,11 +1351,10 @@ const GitHub = {
 
     for (const { file, key, getData } of tablas) {
       try {
-        const remoto  = await this.getFile(file);
-        const local   = getData();
-        const merged  = remoto ? this._mergeArrays(local, remoto.content) : local;
+        const remoto = await this.getFile(file);
+        const local  = getData();
+        const merged = remoto ? this._mergeArrays(local, remoto.content, mergedDels) : local;
         await this.putFile(file, merged, remoto?.sha);
-        // Actualizar local con el resultado del merge (sin pasar por _set para no re-disparar autoSync)
         Storage._cache[key] = merged;
         localStorage.setItem(key, JSON.stringify(merged));
       } catch(e) { errors.push(`${file}: ${e.message}`); }
@@ -1326,12 +1362,11 @@ const GitHub = {
 
     // Productos: merge + manejo especial de imágenes
     try {
-      const remoto        = await this.getFile('imp_productos.json');
-      const localProds    = Storage.getProductos();
-      const localSinFoto  = localProds.map(p => ({ ...p, foto: p.foto ? '[imagen]' : null }));
-      const merged        = remoto ? this._mergeArrays(localSinFoto, remoto.content) : localSinFoto;
+      const remoto       = await this.getFile('imp_productos.json');
+      const localProds   = Storage.getProductos();
+      const localSinFoto = localProds.map(p => ({ ...p, foto: p.foto ? '[imagen]' : null }));
+      const merged       = remoto ? this._mergeArrays(localSinFoto, remoto.content, mergedDels) : localSinFoto;
       await this.putFile('imp_productos.json', merged, remoto?.sha);
-      // Restaurar imágenes locales en el resultado del merge
       const mergedConFoto = merged.map(p => {
         if (p.foto === '[imagen]') {
           const lp = localProds.find(x => x.id === p.id);
@@ -1344,7 +1379,7 @@ const GitHub = {
       if (Storage._dirHandle) Storage._writeProductosFile(mergedConFoto);
     } catch(e) { errors.push(`imp_productos.json: ${e.message}`); }
 
-    // Config: solo sube local (los cambios de config son intencionales)
+    // Config: solo sube local
     try {
       const sha = await this._getSha('imp_config.json');
       await this.putFile('imp_config.json', { ...cfg, logo: cfg.logo ? '[imagen]' : null }, sha);
@@ -1355,8 +1390,14 @@ const GitHub = {
 
   // ── Baja todos los datos de GitHub (imágenes se preservan localmente) ──────
   async pullAll() {
-    this._suppress = true;  // evita que los _set() disparen auto-sync
+    this._suppress = true;
     try {
+      // Bajar lista de eliminaciones primero para aplicarla al resto
+      const delsResult = await this.getFile('imp_deletions.json');
+      if (delsResult) {
+        const merged = this._mergeDeletions(Storage.getDeletions(), delsResult.content);
+        localStorage.setItem(Storage.K.DELETIONS, JSON.stringify(merged));
+      }
       // Productos: restaurar imágenes desde datos locales por ID
       const prodResult = await this.getFile('imp_productos.json');
       if (prodResult) {
@@ -1826,9 +1867,10 @@ const Importaciones = {
   _itemsForm: [],
 
   render() {
-    const lista   = Storage.getImportaciones().sort((a,b) => new Date(b.fechaOrden)-new Date(a.fechaOrden));
-    const invTotal = lista.reduce((s,p)=>s+this._totalPedido(p),0);
-    const enCurso  = lista.filter(p => p.estado !== 'entregado').length;
+    const lista    = Storage.getImportaciones().sort((a,b) => new Date(b.fechaOrden)-new Date(a.fechaOrden));
+    const activas  = lista.filter(p => p.estado !== 'cancelado');
+    const invTotal = activas.reduce((s,p)=>s+this._totalPedido(p),0);
+    const enCurso  = activas.filter(p => p.estado !== 'entregado').length;
 
     document.getElementById('view-container').innerHTML = `
       <div class="page-header">
@@ -1840,9 +1882,9 @@ const Importaciones = {
       </div>
 
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value">${lista.length}</div></div>
+        <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value">${activas.length}</div></div>
         <div class="stat-card"><div class="stat-label">En Curso</div><div class="stat-value" style="color:var(--warning)">${enCurso}</div></div>
-        <div class="stat-card"><div class="stat-label">Entregados</div><div class="stat-value" style="color:var(--success)">${lista.filter(p=>p.estado==='entregado').length}</div></div>
+        <div class="stat-card"><div class="stat-label">Entregados</div><div class="stat-value" style="color:var(--success)">${activas.filter(p=>p.estado==='entregado').length}</div></div>
         <div class="stat-card"><div class="stat-label">Inversión Total</div><div class="stat-value" style="font-size:18px">${Storage.fmt(invTotal)}</div></div>
       </div>
 
@@ -1852,6 +1894,7 @@ const Importaciones = {
           <select class="form-control" style="width:auto" id="imp-est" onchange="Importaciones.filter()">
             <option value="">Todos los estados</option>
             ${this.ESTADOS.map(e=>`<option>${e}</option>`).join('')}
+            <option>cancelado</option>
           </select>
         </div>
         <div id="imp-list">${this._renderList(lista)}</div>
@@ -1928,11 +1971,12 @@ const Importaciones = {
           </div>
 
           <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-            ${imp.estado !== 'entregado' ? `
+            ${imp.estado !== 'entregado' && imp.estado !== 'cancelado' ? `
               <button class="btn btn-success btn-sm" onclick="Importaciones.confirmarEntregar('${imp.id}')">✅ Marcar entregado</button>
               <button class="btn btn-outline btn-sm" onclick="Importaciones.avanzar('${imp.id}')">Avanzar estado →</button>` : ''}
-            <button class="btn btn-ghost btn-sm" onclick="Importaciones.openForm('${imp.id}')">✏️ Editar</button>
+            ${imp.estado !== 'cancelado' ? `<button class="btn btn-ghost btn-sm" onclick="Importaciones.openForm('${imp.id}')">✏️ Editar</button>` : ''}
             ${imp.estado === 'entregado' ? `<button class="btn btn-ghost btn-sm" onclick="Importaciones.verResumen('${imp.id}')">📋 Resumen</button>` : ''}
+            ${imp.estado !== 'cancelado' && imp.estado !== 'entregado' ? `<button class="btn btn-ghost btn-sm" onclick="Importaciones.cancelar('${imp.id}')" style="color:var(--danger)">🚫 Cancelar</button>` : ''}
             <button class="btn btn-ghost btn-sm" onclick="Importaciones.del('${imp.id}')">🗑️</button>
           </div>
         </div>`;
@@ -1940,7 +1984,7 @@ const Importaciones = {
   },
 
   _badge(e) {
-    const m = { 'pedido':'info', 'en transporte':'warning', 'entregado':'success' };
+    const m = { 'pedido':'info', 'en transporte':'warning', 'entregado':'success', 'cancelado':'secondary' };
     return `<span class="badge badge-${m[e]||'secondary'}">${e}</span>`;
   },
 
@@ -2376,6 +2420,16 @@ const Importaciones = {
       App.toast('Pedido eliminado', 'success');
       this.render();
     });
+  },
+
+  cancelar(id) {
+    const p = Storage.getImportacion(id);
+    if (!p) return;
+    App.confirm(`¿Cancelar el pedido Amazon "<strong>${p.nombre||'sin nombre'}</strong>"? Quedará como cancelado en el historial.`, () => {
+      Storage.saveImportacion({ ...p, estado: 'cancelado' });
+      App.toast('Pedido cancelado', 'success');
+      this.render();
+    });
   }
 };
 
@@ -2729,13 +2783,16 @@ const Clientes = {
 const Ventas = {
   _carrito: [],
   _clienteId: null,
+  _ventaEditId: null,
 
   render() {
     const ventas = Storage.getVentas().sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-    const totalVentas  = ventas.reduce((s, v) => s + parseFloat(v.total || 0), 0);
-    const totalCobrado = ventas.reduce((s, v) => s + parseFloat(v.pagadoInicial || 0), 0)
-      + Storage.getAbonos().reduce((s, a) => s + parseFloat(a.monto || 0), 0);
-    const totalPendiente = ventas.reduce((s, v) => s + Storage.getSaldoVenta(v.id), 0);
+    const activas = ventas.filter(v => !v.cancelado);
+    const totalVentas    = activas.reduce((s, v) => s + parseFloat(v.total || 0), 0);
+    const totalCobrado   = activas.reduce((s, v) => s + parseFloat(v.pagadoInicial || 0), 0)
+      + Storage.getAbonos().filter(a => !Storage.getVenta(a.ventaId)?.cancelado)
+          .reduce((s, a) => s + parseFloat(a.monto || 0), 0);
+    const totalPendiente = activas.reduce((s, v) => s + Storage.getSaldoVenta(v.id), 0);
 
     document.getElementById('view-container').innerHTML = `
       <div class="page-header">
@@ -2761,7 +2818,7 @@ const Ventas = {
         </div>
         <div class="stat-card">
           <div class="stat-label">Nro. Pedidos</div>
-          <div class="stat-value">${ventas.length}</div>
+          <div class="stat-value">${activas.length}</div>
         </div>
       </div>
 
@@ -2770,7 +2827,7 @@ const Ventas = {
           <input type="text" class="search-input" id="vta-q" placeholder="Buscar cliente, fecha..." oninput="Ventas.filter()">
           <select class="form-control" style="width:auto" id="vta-est" onchange="Ventas.filter()">
             <option value="">Todos los estados</option>
-            <option>pagado</option><option>parcial</option><option>pendiente</option>
+            <option>pagado</option><option>parcial</option><option>pendiente</option><option>cancelado</option>
           </select>
         </div>
         <div id="vta-body">${this._table(ventas)}</div>
@@ -2793,7 +2850,7 @@ const Ventas = {
       <tbody>
         ${ventas.map(v => {
           const saldo = Storage.getSaldoVenta(v.id);
-          const estado = saldo <= 0 ? 'pagado' : parseFloat(v.pagadoInicial || 0) > 0 ? 'parcial' : 'pendiente';
+          const estado = v.cancelado ? 'cancelado' : saldo <= 0 ? 'pagado' : parseFloat(v.pagadoInicial || 0) > 0 ? 'parcial' : 'pendiente';
           return `
             <tr>
               <td>${Storage.fmtDate(v.fecha)}</td>
@@ -2806,12 +2863,14 @@ const Ventas = {
               </td>
               <td><strong>${Storage.fmt(v.total)}</strong></td>
               <td>${Storage.fmt(v.pagadoInicial)}</td>
-              <td style="color:${saldo>0?'var(--danger)':'var(--success)'};font-weight:700">${Storage.fmt(saldo)}</td>
+              <td style="color:${saldo>0&&!v.cancelado?'var(--danger)':'var(--success)'};font-weight:700">${v.cancelado ? '—' : Storage.fmt(saldo)}</td>
               <td>${this._badge(estado)}</td>
               <td>
-                <div style="display:flex;gap:6px">
+                <div style="display:flex;gap:6px;align-items:center">
                   <button class="btn btn-ghost btn-sm" onclick="Ventas.verDetalle('${v.id}')">👁️</button>
-                  ${saldo > 0 ? `<button class="btn btn-success btn-sm" onclick="Ventas.openAbono('${v.id}')">💵 Abonar</button>` : ''}
+                  ${!v.cancelado && saldo > 0 ? `<button class="btn btn-success btn-sm" onclick="Ventas.openAbono('${v.id}')">💵 Abonar</button>` : ''}
+                  ${!v.cancelado ? `<button class="btn btn-outline btn-sm" onclick="Ventas.openEditar('${v.id}')">✏️</button>` : ''}
+                  ${!v.cancelado ? `<button class="btn btn-ghost btn-sm" onclick="Ventas.cancelarVenta('${v.id}')" style="color:var(--danger)">🚫</button>` : ''}
                 </div>
               </td>
             </tr>`;
@@ -2821,7 +2880,7 @@ const Ventas = {
   },
 
   _badge(e) {
-    const m = { pagado:'success', parcial:'warning', pendiente:'danger' };
+    const m = { pagado:'success', parcial:'warning', pendiente:'danger', cancelado:'secondary' };
     return `<span class="badge badge-${m[e]||'secondary'}">${e}</span>`;
   },
 
@@ -2832,7 +2891,7 @@ const Ventas = {
     if (q) ventas = ventas.filter(v => `${v.clienteNombre}${v.fecha}`.toLowerCase().includes(q));
     if (est) ventas = ventas.filter(v => {
       const s = Storage.getSaldoVenta(v.id);
-      const estado = s<=0?'pagado':parseFloat(v.pagadoInicial||0)>0?'parcial':'pendiente';
+      const estado = v.cancelado ? 'cancelado' : s<=0?'pagado':parseFloat(v.pagadoInicial||0)>0?'parcial':'pendiente';
       return estado === est;
     });
     document.getElementById('vta-body').innerHTML = this._table(ventas);
@@ -2842,6 +2901,7 @@ const Ventas = {
   openCarrito(clienteIdPre) {
     this._carrito = [];
     this._clienteId = clienteIdPre || null;
+    this._ventaEditId = null;
     const clientes = Storage.getClientes().sort((a,b)=>a.nombre.localeCompare(b.nombre));
     const productos = Storage.getProductos().filter(p => (p.stock||0) > 0);
 
@@ -2888,6 +2948,70 @@ const Ventas = {
       </div>`, true);
   },
 
+  openEditar(ventaId) {
+    const v = Storage.getVenta(ventaId);
+    if (!v) return;
+    this._ventaEditId = ventaId;
+    this._carrito = (v.items || []).map(i => {
+      const p = Storage.getProducto(i.productoId);
+      return {
+        productoId:     i.productoId,
+        nombre:         i.nombre,
+        precioUnitario: i.precioUnitario,
+        cantidad:       i.cantidad,
+        stockMax:       (p?.stock || 0) + i.cantidad
+      };
+    });
+
+    const clientes  = Storage.getClientes().sort((a, b) => a.nombre.localeCompare(b.nombre));
+    const productos = Storage.getProductos();
+
+    App.openModal('✏️ Editar Pedido Cliente', `
+      <div class="form-group">
+        <label>Cliente *</label>
+        <select class="form-control" id="cart-cli">
+          <option value="">-- Seleccionar cliente --</option>
+          ${clientes.map(c => `<option value="${c.id}" ${c.id===v.clienteId?'selected':''}>${c.nombre}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Agregar Producto</label>
+        <div style="display:flex;gap:8px">
+          <select class="form-control" id="cart-prod" style="flex:1">
+            <option value="">-- Seleccionar producto --</option>
+            ${productos.map(p => {
+              const reservado = (v.items||[]).find(i => i.productoId === p.id)?.cantidad || 0;
+              return `<option value="${p.id}">${p.nombre} — ${Storage.fmt(p.precioVenta)} (stock: ${(p.stock||0) + reservado})</option>`;
+            }).join('')}
+          </select>
+          <button class="btn btn-outline btn-sm" onclick="Ventas._agregarItem()" style="white-space:nowrap">+ Agregar</button>
+        </div>
+      </div>
+
+      <div style="margin-bottom:6px;font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em">Productos en el pedido</div>
+      <div id="cart-items" style="min-height:60px;margin-bottom:14px"></div>
+      <div style="text-align:right;font-size:18px;font-weight:700;color:var(--primary);margin-bottom:16px" id="cart-total">${Storage.fmt(0)}</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Pagado inicial</label>
+          <input class="form-control" id="cart-pagado" type="number" step="0.01" min="0" placeholder="0.00" value="${v.pagadoInicial || 0}">
+        </div>
+        <div class="form-group">
+          <label>Notas</label>
+          <input class="form-control" id="cart-notas" placeholder="Observaciones..." value="${v.notas || ''}">
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="App.closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="Ventas.guardarVenta()">💾 Guardar cambios</button>
+      </div>`, true);
+
+    this._renderCarritoItems();
+  },
+
   _agregarItem() {
     const prodId = document.getElementById('cart-prod')?.value;
     if (!prodId) { App.toast('Selecciona un producto', 'warning'); return; }
@@ -2895,10 +3019,15 @@ const Ventas = {
     if (!prod) return;
     const existing = this._carrito.find(i => i.productoId === prodId);
     if (existing) {
-      if (existing.cantidad >= (prod.stock || 0)) { App.toast('Sin stock suficiente', 'warning'); return; }
+      if (existing.cantidad >= existing.stockMax) { App.toast('Sin stock suficiente', 'warning'); return; }
       existing.cantidad++;
     } else {
-      this._carrito.push({ productoId: prodId, nombre: prod.nombre, precioUnitario: prod.precioVenta, cantidad: 1, stockMax: prod.stock || 0 });
+      const reservado = this._ventaEditId
+        ? (Storage.getVenta(this._ventaEditId)?.items||[]).find(i => i.productoId === prodId)?.cantidad || 0
+        : 0;
+      const stockMax = (prod.stock || 0) + reservado;
+      if (stockMax <= 0) { App.toast('Sin stock disponible', 'warning'); return; }
+      this._carrito.push({ productoId: prodId, nombre: prod.nombre, precioUnitario: prod.precioVenta, cantidad: 1, stockMax });
     }
     this._renderCarritoItems();
   },
@@ -2947,12 +3076,27 @@ const Ventas = {
     const clienteId = document.getElementById('cart-cli')?.value;
     if (!clienteId) { App.toast('Selecciona un cliente', 'error'); return; }
     if (!this._carrito.length) { App.toast('El carrito está vacío', 'error'); return; }
-    const cliente  = Storage.getCliente(clienteId);
-    const total    = this._carrito.reduce((s, i) => s + i.precioUnitario * i.cantidad, 0);
-    const pagado   = parseFloat(document.getElementById('cart-pagado')?.value) || 0;
-    const notas    = document.getElementById('cart-notas')?.value.trim() || '';
 
-    // Descontar stock
+    const isEdit  = !!this._ventaEditId;
+    const cliente = Storage.getCliente(clienteId);
+    const total   = this._carrito.reduce((s, i) => s + i.precioUnitario * i.cantidad, 0);
+    const pagado  = parseFloat(document.getElementById('cart-pagado')?.value) || 0;
+    const notas   = document.getElementById('cart-notas')?.value.trim() || '';
+
+    if (isEdit) {
+      // Restaurar stock de los ítems anteriores antes de aplicar los nuevos
+      const oldVenta = Storage.getVenta(this._ventaEditId);
+      (oldVenta?.items || []).forEach(item => {
+        const p = Storage.getProducto(item.productoId);
+        if (p) {
+          p.stock = (p.stock || 0) + item.cantidad;
+          if (p.estado === 'agotado' && p.stock > 0) p.estado = 'disponible';
+          Storage.saveProducto(p);
+        }
+      });
+    }
+
+    // Descontar stock con los nuevos ítems
     this._carrito.forEach(item => {
       const p = Storage.getProducto(item.productoId);
       if (p) {
@@ -2962,19 +3106,46 @@ const Ventas = {
       }
     });
 
-    Storage.saveVenta({
+    const ventaData = {
       clienteId,
       clienteNombre: cliente?.nombre || '',
       items:         this._carrito.map(i => ({ productoId:i.productoId, nombre:i.nombre, cantidad:i.cantidad, precioUnitario:i.precioUnitario })),
       total,
       pagadoInicial: pagado,
       notas
-    });
+    };
 
-    this._carrito = [];
+    if (isEdit) {
+      ventaData.id    = this._ventaEditId;
+      ventaData.fecha = Storage.getVenta(this._ventaEditId)?.fecha;
+    }
+
+    Storage.saveVenta(ventaData);
+    this._carrito     = [];
+    this._ventaEditId = null;
     App.closeModal();
-    App.toast('Pedido registrado exitosamente', 'success');
+    App.toast(isEdit ? 'Pedido actualizado' : 'Pedido registrado exitosamente', 'success');
     this.render();
+  },
+
+  cancelarVenta(ventaId) {
+    const v = Storage.getVenta(ventaId);
+    if (!v) return;
+    const tieneAbonos = Storage.getAbonosByVenta(ventaId).length > 0;
+    const aviso = tieneAbonos ? '<br><br>⚠️ Este pedido tiene abonos registrados.' : '';
+    App.confirm(`¿Cancelar el pedido de <strong>${v.clienteNombre}</strong>? El stock de los productos será restaurado.${aviso}`, () => {
+      (v.items || []).forEach(item => {
+        const p = Storage.getProducto(item.productoId);
+        if (p) {
+          p.stock = (p.stock || 0) + item.cantidad;
+          if (p.estado === 'agotado' && p.stock > 0) p.estado = 'disponible';
+          Storage.saveProducto(p);
+        }
+      });
+      Storage.saveVenta({ ...v, cancelado: true });
+      App.toast('Pedido cancelado. Stock restaurado.', 'success');
+      this.render();
+    });
   },
 
   // ── Abono ──
