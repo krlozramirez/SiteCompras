@@ -217,7 +217,8 @@ const Clientes = {
   imprimirEtiqueta(id) {
     const c   = Storage.getCliente(id);
     if (!c) return;
-    const cfg = Storage.getConfig();
+    const cfg     = Storage.getConfig();
+    const color   = cfg.catalogColor || '#1e293b';
     const logoHTML = cfg.logo
       ? `<img src="${cfg.logo}" style="height:32px;margin-bottom:4px;display:block;border-radius:4px">`
       : '';
@@ -234,8 +235,8 @@ const Clientes = {
   .toolbar button{padding:8px 20px;font-size:14px;cursor:pointer;border:1px solid #94a3b8;border-radius:6px;background:#fff;font-weight:600}
   .toolbar .btn-print{background:#6366f1;color:#fff;border-color:#6366f1}
   .page{padding:24px}
-  .etiqueta{width:10cm;border:2px solid #1e293b;border-radius:6px;overflow:hidden;font-family:Arial,sans-serif}
-  .remitente{background:#1e293b;color:#fff;padding:10px 14px;font-size:9.5pt}
+  .etiqueta{width:10cm;border:2px solid ${color};border-radius:6px;overflow:hidden;font-family:Arial,sans-serif}
+  .remitente{background:${color};color:#fff;padding:10px 14px;font-size:9.5pt}
   .remitente .biz{font-weight:700;font-size:10.5pt}
   .separador{border:none;border-top:1.5px dashed #94a3b8;margin:0}
   .destinatario{padding:14px}

@@ -65,7 +65,7 @@ ${extraMobileCss}
     </div>
     <nav>
       <a href="#inventario"    class="nav-link active" data-view="inventario"><span class="nav-icon">📦</span><span>Inventario</span></a>
-      <a href="#importaciones" class="nav-link" data-view="importaciones"><span class="nav-icon">📦</span><span>Pedidos Amazon</span></a>
+      <a href="#importaciones" class="nav-link" data-view="importaciones"><span class="nav-icon">🛍️</span><span>Pedidos Amazon</span></a>
       <a href="#clientes"      class="nav-link" data-view="clientes"><span class="nav-icon">👥</span><span>Clientes</span></a>
       <a href="#ventas"        class="nav-link" data-view="ventas"><span class="nav-icon">🛒</span><span>Pedidos Clientes</span></a>
       <a href="#cartera"       class="nav-link" data-view="cartera"><span class="nav-icon">💰</span><span>Cartera</span></a>

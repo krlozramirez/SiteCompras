@@ -30,9 +30,11 @@ const App = {
       splash('⬇️ Sincronizando con GitHub...');
       try {
         await GitHub.pullAll();
+        await GitHub._refreshLastCommitSha(); // punto de referencia para el polling
       } catch(e) {
         this.toast('Sin conexión a GitHub. Usando datos locales.', 'warning');
       }
+      GitHub.startPolling(30000); // revisar cambios externos cada 30 segundos
     }
 
     this._applyConfig();
