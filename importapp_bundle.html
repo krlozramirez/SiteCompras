@@ -4301,6 +4301,21 @@ const App = {
     const destinos = [];
     let hayError = false;
 
+    // Primero bajar cambios de GitHub (por si otro dispositivo modificó algo)
+    if (hasGitHub) {
+      try {
+        if (icon) icon.textContent = '⬇️';
+        if (lbl)  lbl.textContent  = 'Bajando...';
+        await GitHub.pullAll();
+      } catch(e) {
+        // Si falla el pull seguimos igual con datos locales
+        console.warn('[Sync] Pull previo falló:', e.message);
+      }
+    }
+
+    if (icon) icon.textContent = '⏳';
+    if (lbl)  lbl.textContent  = 'Guardando...';
+
     if (hasFolder) {
       const result = await Storage.syncAll();
       if (result.ok) destinos.push('carpeta');
@@ -4310,6 +4325,7 @@ const App = {
     if (hasGitHub) {
       try {
         await GitHub.syncAll();
+        await GitHub._refreshLastCommitSha();
         destinos.push('GitHub');
       } catch(e) {
         hayError = true;
@@ -4322,6 +4338,9 @@ const App = {
       if (icon) icon.textContent = '✅';
       if (lbl)  lbl.textContent  = 'Guardado';
       App.toast('Guardado en: ' + destinos.join(' y '), 'success');
+      // Refrescar vista actual para mostrar datos actualizados
+      const vista = location.hash.replace('#', '') || 'inventario';
+      if (this.views[vista]) this.views[vista]();
       setTimeout(() => { btn.disabled = false; App.updateSyncBtn(); }, 2000);
     } else {
       if (icon) icon.textContent = '⚠️';
